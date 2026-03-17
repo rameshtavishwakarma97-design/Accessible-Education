@@ -1,0 +1,847 @@
+﻿________________
+Accessible Education Platform - Product Requirements Document (PRD)
+
+
+Version: 1.1 Date: February 16, 2026 Owner: Product Team Status: Ready for Development
+
+
+________________
+1. Executive Summary
+1.1 Product Vision
+An accessible, institute-scale education platform that enables students with disabilities (blind, deaf, mute, ADHD, etc.) to access educational content in formats that work for their specific needs—without being segregated into disability-specific systems—while supporting complex multi-level academic hierarchies (institutes, schools, departments, programs, years, divisions, sections) similar to large universities like Amity.
+
+
+1.2 The Problem
+* Current Reality: Students with multiple disabilities (e.g., deaf + mute) must use separate platforms for each disability, creating fragmented experiences.
+
+* Teacher Burden: Teachers manually create multiple accessible versions of the same content (audio for blind, captions for deaf, simplified for ADHD).
+
+* Coverage Gaps: 65% of disabled students have multiple disabilities but existing platforms only support single-disability workflows.
+
+* Compliance Risk: Schools struggle to meet WCAG 2.1 AAA accessibility standards.
+
+* Structural Complexity: Large institutes have multiple colleges, programs, streams (e.g., CS, Mechanical, Civil), academic years, divisions, and elective structures, but existing tools either ignore this complexity or hard-code it per institute, making scaling difficult.
+
+1.3 The Solution
+A unified, multi-tenant platform where:
+
+
+   * Students create ONE profile that selects multiple accessibility needs → System activates relevant features automatically.
+
+   * Teachers upload content ONCE → System automatically converts to ALL accessible formats (audio, Braille, captions, simplified, sign language).
+
+   * Modular accessibility: Features combine seamlessly (e.g., audio + captions + simplified text all work together).
+
+   * Configurable hierarchy engine: Each institute defines its own academic structure (e.g., Institute → School → Department → Program → Year → Division → Section) and course offerings without code changes.
+
+   * Course & enrollment layer: Core courses, years, divisions, and electives (e.g., Machine Learning vs Cloud Engineering) are modeled explicitly so content and assessments can be scoped to the right cohorts.
+
+   * Role & scoping layer: Flexible RBAC and content targeting ensure the right teachers see the right courses and the right students see the right materials, even in complex elective scenarios.
+
+1.4 Success Criteria
+      * Accessibility Coverage: 100% of content available in all required formats within 5 minutes of upload.
+
+      * Teacher Efficiency: 90% reduction in time spent creating accessible content.
+      * User Adoption: 50,000+ students, 100+ institutions within 12 months.
+
+      * Compliance: WCAG 2.1 AAA certification.
+      * Student Outcomes: 20%+ improvement in course completion rates for students with disabilities.
+
+      * Configurability: 90%+ of new institutes onboarded without engineering changes to hierarchy or course structures.
+
+      * Scalability: Support at least 50 concurrent institutes, each with distinct academic hierarchies, without performance degradation.
+
+________________
+2. Target Users & Personas
+2.1 Primary User Groups
+Students with Disabilities (95,000 target users)
+         * Blind/Low Vision: 32% of disabled student population.
+
+         * Deaf/Hard of Hearing: 24%.
+         * Mute/Speech Impaired: 9%.
+         * ADHD/Cognitive: 45%.
+         * Multiple Disabilities: 12% have 2+, 5% have 3+.
+
+Teachers (5,000 target users)
+            * K-12 and higher education instructors with inclusive classrooms who need to create accessible content but lack time/expertise.
+
+School & Institute Administrators (1,000 target users)
+               * Responsible for accessibility, academic structure, and compliance reporting across schools, departments, and programs.
+
+Academic Operations / Registrar / Program Coordinators
+                  * Manage course catalogs, offerings, sections, divisions, and elective configuration at institute scale.
+
+2.2 User Personas
+Persona 1: Maya - Deaf-Blind Student with ADHD
+                     * Age: 17, High School Junior.
+                     * Disabilities: Deaf-blind (limited vision), ADHD.
+                     * Technology: Uses Braille display, screen reader, needs content in small chunks.
+                     * Goal: Keep up with classmates without juggling 3 different accessibility tools.
+                     * Current Pain: Uses one app for Braille, another for simplified content, loses track of which content is where.
+                     * Quote: "I just want ONE place where everything works for me, not three different apps that don't talk to each other".
+Persona 2: Prof. Johnson - Inclusive Classroom Teacher
+                     * Age: 42, University Professor.
+                     * Class Size: 120 students, 18 with documented disabilities (blind, deaf, ADHD, dyslexia).
+                     * Goal: Make all lectures accessible without spending weekends converting files.
+                     * Current Pain: Uploads video → manually creates captions → manually creates transcript → manually creates simplified notes → still missing sign language version = 6 hours per lecture.
+                     * Quote: "I want to teach, not spend my weekends converting files into 5 different formats".
+Persona 3: Dr. Patel - School Accessibility Coordinator
+                     * Age: 55, District Administrator.
+                     * Responsibility: 15 schools, 8,000 students, 950 with IEPs (Individual Education Plans).
+                     * Goal: Prove accessibility compliance for audits, identify gaps.
+                     * Current Pain: Can't track which content is accessible in which formats across schools, manual spreadsheet nightmare.
+                     * Quote: "When auditors ask 'Is all your content WCAG AAA compliant?', I need to say yes with data, not guesswork".
+Persona 4: Prof. Rao – Program Coordinator, B.Tech CSE
+                     * Responsible for configuring program-level core and elective courses (e.g., Data Science, Machine Learning, Cloud Engineering) across years and divisions.
+
+                     * Needs to ensure each division has the right set of offerings and teachers, and that content and assessments are correctly scoped.
+
+Persona 5: Ms. Sharma – Institute ERP / Academic Operations Manager
+                        * Manages the master hierarchy: institutes, schools, departments, programs, years, and divisions.
+
+                        * Needs a no-code way to configure structures similar to Amity’s engineering streams and keep them in sync with admissions, ERP, and LMS data.
+
+________________
+3. Core Features & Requirements
+Feature 1: Unified Accessibility Profile System
+
+
+What It Is: Students create ONE profile where they select multiple disabilities and accessibility preferences. The system automatically activates relevant features.
+
+
+Business Value: Eliminates the #1 pain point for students with multiple disabilities - juggling separate systems.
+User Stories:
+                           * As a deaf-blind student, I want to select both "deaf" and "blind" in my profile so the system activates captions AND audio navigation simultaneously.
+                           * As a student with ADHD, I want to set my extended time multiplier once so all assessments automatically give me 2x time without asking every time.
+                           * As a blind student, I want to register my Braille display device so content automatically renders in Braille format when I log in.
+Requirements:
+                           * Profile setup allows multi-select of disabilities from list: Blind, Low Vision, Deaf, Hard of Hearing, Mute, Speech Impaired, ADHD, Dyslexia, Autism, Cognitive, Motor, Other.
+                           * System automatically activates accessibility modules based on selections:
+                           * Blind/Low Vision → Visual Module.
+                           * Deaf/Hard of Hearing → Auditory Module.
+                           * Mute/Speech Impaired → Communication Module.
+                           * ADHD/Cognitive → Cognitive Module.
+                           * All disabilities → Navigation Module.
+                           * Profile saves preferences: font size (0.5x-3.0x), time extensions (1.0x-3.0x), contrast mode, input methods.
+                           * Device registration: Braille displays, screen readers, AAC devices with model/settings.
+                           * Profile syncs across web and mobile apps.
+                           * Changes to profile update UI within 2 seconds.
+Acceptance Criteria:
+                           * ✓ Student can select unlimited disabilities from dropdown.
+                           * ✓ Selecting "Blind" + "ADHD" activates Visual + Cognitive + Navigation modules.
+                           * ✓ No conflicts when multiple modules active (e.g., audio + simplified text both work).
+                           * ✓ Profile persists after logout/login.
+                           * ✓ Mobile app reflects same profile as web.
+Metrics:
+                           * 90%+ of students with multiple disabilities use 2+ modules simultaneously.
+                           * < 5% profile setup abandonment rate.
+________________
+Feature 2: Automatic Content Conversion Engine
+What It Is: When teacher uploads content (PDF, video, audio, image, presentation), system automatically converts to ALL accessible formats without teacher involvement.
+Business Value: Core value proposition - 90% reduction in teacher time, eliminates manual accessibility work.
+User Stories:
+                           * As a teacher, I want to upload a PDF lecture and have it automatically become available in audio, Braille, and simplified formats within 5 minutes.
+                           * As a blind student, I want uploaded videos to have audio descriptions automatically generated so I can understand visual content.
+                           * As a teacher, I want to review auto-generated Braille before students see it to ensure mathematical notation is correct.
+Requirements:
+Supported Input Formats:
+                           * Documents: PDF, DOCX, TXT, PPT, Google Docs.
+                           * Video: MP4, MOV, AVI, YouTube links.
+                           * Audio: MP3, WAV, M4A.
+                           * Images: JPG, PNG, SVG.
+                           * Web content: URLs with scraping.
+Tier 1 Conversions (Fully Automated - Publish Immediately):
+                           * Text-to-Speech Audio: Convert text content to natural-sounding audio (15 min processing for 30-page PDF).
+                           * Auto-Captions: Generate captions for videos with speaker identification (25% of video duration for processing).
+                           * Transcripts: Text transcripts for all audio/video content.
+                           * High-Contrast Versions: PDF/documents with high-contrast rendering for low vision.
+                           * Basic Alt-Text: AI-generated image descriptions for simple images.
+Tier 2 Conversions (Automated + Teacher Review Required):
+                           * Braille: Grade 2 Braille conversion with Nemeth Code for math (teacher reviews before publishing).
+                           * Sign Language: AI avatar-generated sign language video overlay (teacher reviews for accuracy).
+                           * Simplified Content: AI-simplified version broken into chunks for ADHD (teacher reviews for accuracy).
+                           * Complex Image Descriptions: Detailed descriptions for diagrams, charts, graphs (teacher edits).
+Tier 3 Conversions (Manual Upload - Optional):
+                           * Professional Sign Language: Teacher uploads human interpreter video to replace AI version.
+                           * Custom Tactile Graphics: Teacher uploads custom descriptions for complex visuals.
+                           * Teacher-Recorded Audio: Teacher records own audio explanation to replace TTS.
+Conversion Pipeline:
+                           * Teacher uploads file → System stores original.
+                           * System analyzes: Extract metadata (word count, duration, language, images).
+                           * Create conversion jobs for all formats → Queue with priority (Tier 1 = high, Tier 2 = normal).
+                           * Process Tier 1 conversions in parallel → Complete within 5 minutes.
+                           * Update content status → Publish to students once Tier 1 complete.
+                           * Notify students: "New content available in Audio, Text, High-Contrast formats".
+                           * Process Tier 2 conversions in background → Mark for teacher review when complete.
+                           * Notify teacher: "3 items in review queue need your attention".
+                           * Teacher reviews/approves → Publish Tier 2 formats.
+                           * Notify students: "New formats available: Braille, Simplified".
+Acceptance Criteria:
+                           * ✓ Tier 1 conversions complete within 5 minutes for typical content (10-page PDF, 30-min video).
+                           * ✓ Teacher sees real-time progress bar during conversion.
+                           * ✓ Content NOT published to students until Tier 1 formats complete.
+                           * ✓ Teacher receives notification when Tier 2 items ready for review.
+                           * ✓ Students only see approved/published formats (not drafts).
+                           * ✓ If conversion fails, teacher receives error notification with fallback option to upload manually.
+Metrics:
+                           * 95%+ Tier 1 conversion success rate.
+                           * < 10% Tier 2 rejection rate (approved on first review).
+                           * Average teacher review time < 2 minutes per item.
+________________
+Feature 3: Accessible Content Viewer
+What It Is: Students view content in their preferred accessible format with seamless format switching and playback controls.
+Business Value: Delivers on the accessibility promise - students actually consume content in their preferred way.
+User Stories:
+                           * As a low-vision student, I want text to automatically display at 1.5x font size based on my profile without manually adjusting every time.
+                           * As a deaf student, I want to switch between captions and transcript views while watching a video.
+                           * As a student with ADHD, I want content broken into 5-minute chunks with progress indicators showing "Section 3 of 8".
+Requirements:
+                           * Format Selector: Dropdown showing all available formats (Original, Audio, Braille, Captions, Transcript, Simplified, High-Contrast).
+                           * Auto-Selection: System pre-selects format based on student's accessibility profile preferences.
+                           * Format Switching: Student can change formats mid-consumption, progress persists.
+                           * Playback Controls:
+                           * Audio: Play, pause, speed (0.5x-2.0x), skip forward/back 15s, volume.
+                           * Video: Play, pause, captions toggle, sign language toggle, speed, quality.
+                           * Text: Font size, contrast mode, line spacing, text-to-speech toggle.
+                           * Braille Integration: Content auto-renders on connected Braille display, synchronized scrolling.
+                           * Progress Tracking: System saves position (e.g., "Page 7 of 10", "12:30 of 45:00 video").
+                           * Resume Functionality: "Resume from where you left off" on return.
+                           * Chunking (Cognitive Module): Content broken into sections with progress ("Section 3 of 8"), option for breaks.
+                           * Keyboard Navigation: All controls accessible via keyboard (Tab, Space, Arrow keys).
+Acceptance Criteria:
+                           * ✓ Format selector visible on all content pages.
+                           * ✓ Format changes apply within 1 second (no page reload).
+                           * ✓ Keyboard navigation works for all controls without mouse.
+                           * ✓ Progress auto-saves every 30 seconds.
+                           * ✓ Student can resume from exact position (video timestamp, PDF page, audio timestamp).
+                           * ✓ Braille display updates in real-time as student scrolls text.
+                           * ✓ Audio playback speed changes work smoothly (no distortion).
+Metrics:
+                           * 70%+ students use non-original formats.
+                           * < 5% format switching errors/failures.
+                           * 80%+ students resume from saved position.
+________________
+Feature 4: Multi-Modal Assessment System
+What It Is: Assessments support multiple question types and submission formats (text, audio, video, file upload) with automatic time extensions based on accessibility profiles.
+Business Value: Enables fair assessment for all students - mute students can submit video responses, blind students get audio questions, ADHD students get extended time automatically.
+User Stories:
+                           * As a mute student, I want to record a sign language video response instead of speaking my answer for oral exams.
+                           * As a blind student, I want to hear questions read aloud and submit typed answers using my screen reader.
+                           * As a student with ADHD, I want my quiz time automatically extended to 60 minutes instead of 30 without asking the teacher every time.
+Requirements:
+Question Types:
+                           * Multiple Choice (auto-gradable).
+                           * True/False (auto-gradable).
+                           * Short Answer (text, auto or manual grading).
+                           * Essay (long text, manual grading).
+                           * File Upload (submit PDF, image, document).
+                           * Audio Response (record audio explanation).
+                           * Video Response (record video, supports sign language).
+Accessibility Features:
+                           * Extended Time: Time limit automatically multiplied by student's profile setting (1.5x, 2.0x, 3.0x).
+                           * Audio Questions: Text-to-speech reads questions aloud (screen reader compatible).
+                           * Multiple Submission Formats: Same question accepts text OR audio OR video response.
+                           * Alternative Input: Students with communication disabilities see alternative submission methods.
+                           * Keyboard-Only: All assessment interactions work without mouse.
+                           * Screen Reader Compatible: Proper ARIA labels, focus management.
+Assessment Workflow:
+                           * Teacher creates assessment with questions and time limit (e.g., 30 minutes).
+                           * Student opens assessment → System shows adjusted time (e.g., "60 minutes" for 2.0x profile).
+                           * Student sees accessibility options: "Audio questions available", "Submit as: Text, Audio, or Video".
+                           * Student answers questions using preferred format.
+                           * Student submits → System auto-grades objective questions immediately.
+                           * System queues subjective questions for teacher grading.
+                           * Student receives: "Auto-graded score: 18/20. Questions 9-10 pending teacher review.".
+                           * Teacher receives notification: "5 submissions to grade".
+                           * Teacher reviews audio/video responses, provides feedback, assigns score.
+                           * Student receives final grade notification.
+Acceptance Criteria:
+                           * ✓ Students see extended time before starting (no surprises).
+                           * ✓ Audio/video upload works in-browser (no external software).
+                           * ✓ Auto-graded questions show score immediately upon submission.
+                           * ✓ Manual grading queue shows teacher all pending items.
+                           * ✓ Students receive notifications when graded (email + in-app).
+                           * ✓ Video responses support playback at 0.5x-2.0x speed for teacher grading.
+Metrics:
+                           * 30%+ submissions use non-text formats (audio/video).
+                           * < 1% auto-grading errors.
+                           * 95%+ student satisfaction with fairness of accommodations.
+________________
+Feature 5: Accessible Communication Suite
+What It Is: Messaging, announcements, and real-time video calls that work for all disabilities with automatic format conversions.
+Business Value: Ensures students can participate in class discussions and communicate with teachers regardless of disability.
+User Stories:
+                           * As a deaf student, I want to send a sign language video message to my teacher and have it auto-captioned so she can understand without knowing sign language.
+                           * As a blind student, I want my screen reader to announce "New message from Prof. Smith" when I receive a message.
+                           * As a teacher, I want to send one announcement and have it delivered in each student's preferred format (audio, text, sign language video).
+Requirements:
+Messaging Types:
+                           * Text messages (typed).
+                           * Audio messages (voice recording).
+                           * Video messages (includes sign language).
+                           * File attachments.
+Automatic Conversions:
+                           * Audio message → Text transcript (within 30 seconds).
+                           * Video message → Captions (within 1 minute).
+                           * Text message → Audio (text-to-speech on-demand).
+Real-Time Features:
+                           * Video calls with live auto-captioning (< 2 second latency).
+                           * Sign language interpretation window (AI or human interpreter).
+                           * Screen reader announcements for chat messages.
+                           * Keyboard shortcuts for all actions.
+Notifications:
+                           * Visual alerts (popup, flash) for deaf students.
+                           * Audio alerts (sound) for blind students.
+                           * Vibration alerts (mobile) configurable.
+                           * Multi-channel delivery: In-app, email, SMS, push notifications.
+                           * Notification preferences respect accessibility profile.
+Acceptance Criteria:
+                           * ✓ Audio messages transcribed within 30 seconds.
+                           * ✓ Video calls support minimum 10 participants with real-time captions.
+                           * ✓ Captions display speaker names ("Prof. Smith: Welcome to class").
+                           * ✓ Notifications delivered via user's preferred channels.
+                           * ✓ Screen reader announces new messages without requiring page refresh.
+                           * ✓ Message history fully searchable (including transcripts of audio messages).
+Metrics:
+                           * 50%+ messages use audio or video (not just text).
+                           * 90%+ transcription accuracy.
+                           * < 2 second caption latency on video calls.
+________________
+Feature 6: Teacher Content Management
+
+
+What It Is: Teacher dashboard to upload, manage, review conversions, and track accessibility of content, with precise scoping to programs, courses, offerings, and sections.
+
+
+
+
+Business Value: Makes teacher workflow efficient—upload once, choose the right audience (e.g., “B.Tech CSE, Year 3, Division A | Machine Learning offering”), review conversions, and publish easily.
+
+
+User Stories:
+                           * As a teacher, I want to upload a lecture once and publish it to all my sections of the same course (CS301, Divisions A and B) so I don’t have to duplicate work.
+
+                           * As a teacher, I want to target some materials only to students who opted for a specific elective (Machine Learning track) within my program.
+
+                           * As a teacher, I want to see a queue of Braille/sign-language/simplified conversions that need review before publishing.
+
+Requirements:
+Content Upload:
+                              * Drag-and-drop file upload or file selector.
+                              * Batch upload (multiple files at once).
+                              * Metadata entry must include at minimum : Title, description.
+
+                              * Academic scoping: Institute (auto), School/College, Department, Program, Academic Year, Course, Course Offering (e.g., CS301-Fall2026), Section/Division (e.g., A/B/C), and optional “All offerings of this course this term”.
+
+                              * Optional audience filters: specific students, elective group, or track (e.g., “Cloud Engineering track students only”).
+
+                              * Due date (for assignments), tags, content type (lecture, lab, assignment, reference).
+                              * Publish options: Immediate, scheduled, draft.
+
+Review Queue:
+                                 * List of all Tier 2 conversions pending review.
+                                 * Filter by: Course, format type, status, date.
+                                 * Preview conversion before approving.
+                                 * Actions: Approve, reject, edit, replace with manual upload.
+                                 * Bulk approve (select multiple, approve all).
+Content Library:
+                                 * List of all uploaded content with status indicators (Published, Draft, Converting, Review Required).
+
+                                 * Filters: by program, course, offering, section, content type, status, term.
+
+                                 * Edit content metadata after upload, including academic scoping (with validation: cannot move content to a course the teacher is not assigned to).
+
+                                 * Delete content (soft delete, can restore).
+                                 * Duplicate content to reuse in a different term or offering.
+
+Analytics:
+                                    * Per-content format usage: “Audio: 45 views, Braille: 12 views”.
+                                    * Student engagement by scoped audience: “B.Tech CS Year 3 Div A – 85% completed; Div B – 72% completed”.
+
+                                    * Conversion quality metrics: Approval rate, errors.
+                                    * Time saved calculator: “You saved 18 hours this month with auto-conversion”.
+
+Acceptance Criteria:
+                                       * ✓ Teacher can select specific course offerings and sections when publishing content; platform prevents publishing outside assigned offerings.
+
+                                       * ✓ Teacher can publish one item to multiple sections of the same course without re-uploading.
+
+                                       * ✓ Content library and analytics can be filtered by institute, school, department, program, course, offering, and section.
+
+                                       * ✓ Review queue shows scoped context (e.g., “CS301 – ML – Year 3 – Div A”) alongside each item.
+
+Metrics:
+                                          * 90%+ Tier 2 approvals (low rejection rate indicates quality).
+                                          * < 3 minutes average review time per item.
+
+                                          * 80%+ teachers use analytics monthly.
+                                          * 80%+ of teacher content correctly scoped without admin intervention.
+
+________________
+Feature 7: Admin Dashboard & Analytics
+
+
+What It Is: Institution-wide, multi-level dashboard for admins to manage users, academic hierarchy, monitor accessibility compliance, and analyze usage.
+
+
+
+
+Business Value: Gives administrators visibility and control for both accessibility and academic operations across complex institutes (multiple schools, departments, programs, years, and divisions).
+
+
+User Stories:
+                                             * As an admin, I want to see a compliance dashboard showing 95% of content meets WCAG AAA standards.
+                                             * As an admin, I want to export a report of all students with multiple disabilities and their module usage for grant applications.
+                                             * As an admin, I want to bulk import 500 student profiles from a CSV file at the start of semester.
+                                             * As an institute admin, I want to configure my hierarchy (e.g., Institute → School → Department → Program → Year → Division → Section) so the platform mirrors our academic structure.
+
+                                             * As a registrar, I want to see enrollment and accessibility analytics per program, per year, and per division (e.g., B.Tech CSE Year 3 Div B) to identify bottlenecks and gaps.
+
+Requirements:
+User Management:
+                                                * Bulk import users via CSV (students, teachers, parents).
+                                                * Assign roles and permissions.
+                                                * View/edit accessibility profiles.
+                                                * Deactivate users (graduation, transfers).
+                                                * Password resets and account management.
+Academic & Hierarchy Management:
+                                                * Create and manage hierarchy levels per tenant: e.g., School/College, Department, Program, Academic Year, Division, Section.
+
+                                                * Configure allowed levels and labels (e.g., “Division” vs “Section”) and whether each level is required or optional.
+
+                                                * Bulk import academic data via CSV (programs, courses, offerings, sections, student–offering enrollments).
+
+                                                * View and edit mappings between users and academic entities (e.g., which programs/years/divisions students belong to).
+
+                                                * Validate hierarchy integrity (e.g., each course offering must belong to one program and one term).
+
+Accessibility Metrics Dashboard:
+                                                   * Total students with disabilities (breakdown by type).
+                                                   * Module activation rates (% using Visual, Auditory, etc.).
+                                                   * Format access patterns (which formats most used).
+                                                   * Students with multiple disabilities count.
+                                                   * Content accessibility coverage (% with all formats).
+                                                   * Ability to drill down metrics by institute → school → department → program → year → division/section.
+
+Compliance Reporting:
+                                                      * WCAG 2.1 AAA compliance status per content item.
+                                                      * Audit logs (who accessed disability data when).
+                                                      * IEP integration (link student profiles to legal IEPs).
+                                                      * Accessibility gap reports (content missing formats).
+                                                      * Export reports as PDF/CSV.
+System Configuration:
+                                                      * Institution settings (name, domain, branding).
+                                                      * Academic structure configuration (enabled levels, labels, constraints).
+
+                                                      * API key management (third-party services: TTS, captions, Braille).
+                                                      * Integration setup (LMS, SSO, calendar).
+                                                      * Cost tracking (API usage costs).
+
+                                                      * Tenant configuration for multi-institute deployments (separate branding, domains, data scopes per institute).
+Acceptance Criteria:
+                                                         * ✓ Dashboard loads within 3 seconds.
+
+                                                         * ✓ Compliance and hierarchy reports exportable as PDF/CSV with one click.
+
+                                                         * ✓ Bulk imports validate data and show errors before saving (e.g., invalid program or section references).
+
+                                                         * ✓ Real-time metrics update within 1 minute of changes.
+                                                         * ✓ Audit logs show all access to student disability and academic data.
+
+Metrics:
+                                                            * 100% of institutions pass accessibility audits with generated reports.
+                                                            * < 5 minute time to generate compliance report.
+
+                                                            * 90%+ admin satisfaction with dashboard.
+                                                            * 90%+ of hierarchy changes done by admins without engineering support.
+
+________________
+Feature 8: Institute & Academic Hierarchy Management
+
+
+What It Is: A configurable engine for modeling each institute’s academic structure: institutes, schools, departments, programs, years, divisions, sections, and terms (semesters/trimesters).
+
+
+
+
+Business Value: Allows the platform to serve complex institutes like Amity University, engineering colleges, and multi-campus universities without one-off hardcoding, and forms the base for content scoping and enrollment logic.
+
+
+User Stories:
+                                                               * As an institute admin, I want to define my academic hierarchy (e.g., “Institute → School of Engineering → Department of CS → B.Tech CS Program → Year 3 → Division A”) so that courses and students can be modeled correctly.
+
+                                                               * As a multi-campus university, I want each campus to configure its own structure and terminology (e.g., “Section” vs “Division”) under one overall tenant.
+
+                                                               * As a dean, I want to see all programs and years under my school and drill into accessibility and engagement metrics per level.
+
+Requirements:
+Hierarchy Configuration per Tenant:
+                                                                  * Define up to N levels (e.g., Institute → School → Department → Program → Year → Division → Section).
+
+                                                                  * Mark which levels are mandatory and which are optional (e.g., some K–12 schools may skip “Department”).
+
+                                                                  * Rename labels (e.g., “Division” → “Section”) from an admin UI.
+
+Term & Academic Year Management:
+                                                                     * Define academic years (e.g., 2025–26) and terms (semesters/trimesters).
+                                                                     * Associate course offerings and enrollments with specific terms.
+
+Entity Management:
+                                                                        * Create, edit, and retire entities at each level (e.g., new “B.Tech AI” program, new “Year 1 Div C”).
+
+                                                                        * Soft-delete with history to preserve past associations.
+Validation & Integrity:
+                                                                           * Prevent orphan entities (e.g., a Division must belong to a Year, which belongs to a Program).
+
+                                                                           * Enforce cardinalities where configured (e.g., each student belongs to exactly one primary Program and one primary Year).
+
+Acceptance Criteria:
+                                                                              * ✓ Admin can configure hierarchy levels and labels for a tenant without code changes.
+
+                                                                              * ✓ Teachers and students always see their academic context (e.g., “B.Tech CS, Year 3, Div A”) in dashboards and content views.
+
+                                                                              * ✓ Deleting or renaming entities does not break existing content, assessments, or analytics (historical data remains readable).
+
+Metrics:
+                                                                                 * 90%+ of new tenants onboarded using configuration only (no custom code).
+                                                                                 * < 1% hierarchy configuration errors per academic year.
+
+________________
+Feature 9: Course Catalog, Offerings & Enrollment (including Electives)
+
+
+What It Is: A structured course catalog and enrollment layer that models core courses, electives, course offerings per term, sections/divisions, and student registrations.
+
+
+
+
+Business Value: Reflects real-world academic complexity—such as CS vs Mechanical streams, yearly progression, divisions, and student-specific elective choices (e.g., Machine Learning vs Cloud Engineering)—so that content and assessments use correct cohorts.
+
+
+User Stories:
+                                                                                    * As a program coordinator, I want to define core and elective courses for B.Tech CS Year 3 so students can pick combinations like Data Science + Systems Design or Cloud Engineering + ML.
+
+                                                                                    * As a student, I want to see only the courses I am enrolled in and select electives within my allowed pool for a given term.
+
+                                                                                    * As a teacher, I want to see my assigned course offerings and sections (e.g., CS301-Fall2026 Div A/B) in my dashboard without seeing unrelated courses.
+
+Requirements:
+Course Catalog:
+                                                                                       * Store master list of courses with code, title, description, credits, department, level, and type (Core/Elective/Lab/Project).
+
+                                                                                       * Capture prerequisites and co-requisites (e.g., “Data Structures” required before “Machine Learning”).
+
+Course Offerings & Sections:
+                                                                                          * Create term-specific offerings (e.g., CS301 – Machine Learning – Fall 2026).
+
+                                                                                          * Associate each offering with: Program(s), Year(s), Term, and one or more Sections/Divisions (A, B, C).
+
+                                                                                          * Set capacity per section and track enrollment counts.
+Elective Pools & Rules:
+                                                                                             * Define elective groups (e.g., “Advanced CS Electives – choose any 2 from {ML, Cloud Engg, Systems Design, AI}”).
+
+                                                                                             * Configure constraints: min/max electives per group, per term; credit limits per term.
+                                                                                             * Allow per-program variations (B.Tech CS vs B.Tech IT).
+
+Enrollment Workflows:
+                                                                                                * Support admin-driven enrollment, bulk upload from ERP/LMS, and student self-enrollment (if allowed by policy).
+
+                                                                                                * Validate prerequisites, capacity, time clashes, and elective rules before confirming enrollment.
+                                                                                                * Support waitlists and notifications when seats open.
+
+Student View:
+                                                                                                   * Show a unified “My Courses This Term” view listing all enrolled offerings and sections.
+
+                                                                                                   * Indicate course type (Core vs Elective) and track which elective groups are fulfilled.
+
+Acceptance Criteria:
+                                                                                                      * ✓ Program coordinator can define elective pools and constraints that the system enforces automatically at enrollment time.
+
+                                                                                                      * ✓ Students can only enroll in electives for which they meet prerequisites and capacity limits.
+
+                                                                                                      * ✓ Teachers see only offerings/sections they are assigned to.
+                                                                                                      * ✓ Content and assessments correctly reflect course–offering–section scoping (e.g., ML content not visible to students who chose Cloud Engineering instead).
+
+Metrics:
+                                                                                                         * < 2% enrollment errors per term (e.g., wrong elective or missing prerequisite).
+
+                                                                                                         * 90%+ elective registrations completed via the platform where enabled.
+________________
+Feature 10: Role-Based Access Control (RBAC) & Permissions
+
+
+What It Is: A flexible RBAC system that models institute roles (Institute Admin, Dean, HOD, Program Coordinator, Teacher, TA, Student, Parent/Guardian) and controls what each can see and do within their academic context.
+
+
+
+
+Business Value: Ensures that complex institutes can safely delegate configuration and operations, while teachers and students see only relevant data and content.
+
+
+User Stories:
+                                                                                                            * As a HOD, I want to see all courses and sections in my department but not in other departments.
+
+                                                                                                            * As a TA, I want access to grade and manage content only for the sections I support, not for the entire course catalog.
+
+                                                                                                            * As an institute admin, I want to define and adjust permissions without code changes.
+
+Requirements:
+Role Hierarchy & Context:
+                                                                                                               * Predefined roles: Super Admin (platform), Institute Admin, Dean, HOD, Program Coordinator, Teacher, TA, Student, Parent/Guardian.
+
+                                                                                                               * Each role is associated with a scope (e.g., institute-wide, school-level, department-level, program-level, or specific course offering/section).
+
+Permission Matrix:
+                                                                                                                  * Actions such as: manage hierarchy, manage catalog, assign teachers, upload content, publish content, manage assessments, view analytics, configure accessibility, manage users.
+
+                                                                                                                  * Admin UI to assign which roles have which permissions at which scope.
+
+Assignment Workflows:
+                                                                                                                     * Map staff to roles and scopes: e.g., “Prof. Rao – Teacher for CS301-Fall2026 (Div A, B) and Program Coordinator for B.Tech CS.”.
+
+                                                                                                                     * Support multiple roles per person and enforce union of permissions.
+
+Enforcement:
+                                                                                                                        * All critical operations (upload content, create assessments, view grades, change hierarchy) checked against RBAC.
+
+                                                                                                                        * APIs and UI components enforce the same authorization rules.
+Acceptance Criteria:
+                                                                                                                           * ✓ Teachers cannot upload or view content for courses/sections they are not assigned to.
+
+                                                                                                                           * ✓ HODs can see department-wide analytics but cannot modify institute-wide hierarchy unless also assigned those permissions.
+
+                                                                                                                           * ✓ Permission changes are effective within 1 minute and audited.
+Metrics:
+                                                                                                                              * 0 critical security incidents due to mis-scoped permissions.
+
+                                                                                                                              * 95%+ satisfaction among admins for “ease of permission management” in feedback surveys.
+
+________________
+Feature 11: Content Scoping & Targeting Engine
+
+
+What It Is: A targeting layer that determines which students and staff can see a given piece of content, announcement, or assessment, based on hierarchy, course enrollment, and custom rules.
+
+
+
+
+Business Value: Solves the “who should see what” problem in complex institutions with multiple streams, divisions, and electives, while keeping the teacher experience simple.
+
+
+User Stories:
+                                                                                                                                 * As a teacher, I want to upload a file once and choose whether it goes to all my sections of a course, a specific section, or only to students in a particular elective track.
+
+                                                                                                                                 * As a program coordinator, I want to publish a program-level announcement visible to all years and divisions in that program.
+
+                                                                                                                                 * As an accessibility coordinator, I want to send messages to students with specific accessibility profiles (e.g., all students using the Cognitive Module).
+
+Requirements:
+Scope Types:
+                                                                                                                                    * Institute-wide, School/College, Department, Program, Academic Year, Division/Section.
+                                                                                                                                    * Course, Course Offering, specific Section.
+
+                                                                                                                                    * Individual students or custom groups (e.g., “students enrolled in ML elective”).
+
+Targeting UI for Publishers:
+                                                                                                                                       * Simple selector when uploading content or making announcements.
+                                                                                                                                       * “Target level”: Institute / School / Department / Program / Course / Offering / Section / Students.
+
+                                                                                                                                       * Multi-select allowed where appropriate (e.g., multiple sections of the same course).
+
+Rule Evaluation:
+                                                                                                                                          * At read-time, platform evaluates user’s academic context and enrollments to determine visibility.
+
+                                                                                                                                          * Content inherits visibility downwards (e.g., program-level content visible to all years/divisions of that program) unless overridden.
+
+Edge Cases:
+                                                                                                                                             * Handle students enrolled in cross-listed courses (e.g., course shared between CS and IT programs).
+
+                                                                                                                                             * Support future-dated content (visible only from a scheduled publishing time).
+
+Acceptance Criteria:
+                                                                                                                                                * ✓ Teachers can see and configure target audiences without understanding underlying technical details.
+
+                                                                                                                                                * ✓ Students see a consistent set of materials that match their enrollments and electives, with no leakage across programs/sections.
+
+                                                                                                                                                * ✓ Admin can audit a piece of content to see its exact targeting logic and resulting audience counts.
+
+Metrics:
+                                                                                                                                                   * < 1% reported incidents of “wrong audience” for content or announcements.
+                                                                                                                                                   * 95%+ teacher satisfaction with content targeting UX.
+
+________________
+4. Accessibility Modules (Detailed Specifications)
+Module 1: Visual Accessibility Module
+Activates when: Student selects "Blind" or "Low Vision"
+Features:
+                                                                                                                                                      1. Screen reader optimization (ARIA labels, semantic HTML, focus management).
+                                                                                                                                                      2. Text-to-speech for all content (natural voices, adjustable speed).
+                                                                                                                                                      3. Braille display support (USB/Bluetooth connected devices).
+                                                                                                                                                      4. Audio navigation cues ("Button", "Link", "Heading Level 2").
+                                                                                                                                                      5. High-contrast mode (dark theme, light theme, customizable).
+                                                                                                                                                      6. Font size adjustment (0.5x to 3.0x with slider).
+                                                                                                                                                      7. Image descriptions (auto-generated alt-text, complex images human-reviewed).
+                                                                                                                                                      8. Audio descriptions for videos (describe visual elements).
+UI Changes:
+                                                                                                                                                      * Larger click targets (minimum 44×44 pixels).
+                                                                                                                                                      * Clear focus indicators (3px blue outline).
+                                                                                                                                                      * Skip to main content links at top.
+                                                                                                                                                      * Landmark regions (header, nav, main, footer).
+________________
+Module 2: Auditory Accessibility Module
+Activates when: Student selects "Deaf" or "Hard of Hearing"
+Features:
+                                                                                                                                                      1. Auto-generated captions for all videos (synchronized, editable).
+                                                                                                                                                      2. Transcript generation for audio content (searchable, downloadable).
+                                                                                                                                                      3. Sign language video overlay (AI avatar or human interpreter, togglable).
+                                                                                                                                                      4. Visual notification alerts (flash screen border, popup toast).
+                                                                                                                                                      5. Vibration feedback on mobile (notifications, alerts).
+                                                                                                                                                      6. Speaker identification in captions ("Prof. Smith:", "Student 1:").
+                                                                                                                                                      7. No reliance on audio cues (visual alternatives for sounds).
+UI Changes:
+                                                                                                                                                      * Captions on by default.
+                                                                                                                                                      * Visual indicators for audio events (bell icon for notification sound).
+                                                                                                                                                      * Transcript panel always available.
+________________
+Module 3: Communication Accessibility Module
+Activates when: Student selects "Mute" or "Speech Impaired"
+Features:
+                                                                                                                                                      1. Text-based input for all interactions (no verbal requirements).
+                                                                                                                                                      2. AAC device integration (augmentative/alternative communication).
+                                                                                                                                                      3. Gesture-based controls (swipe, tap shortcuts).
+                                                                                                                                                      4. Sign language video upload option (for responses, presentations).
+                                                                                                                                                      5. Text-to-speech output for typed responses (optional).
+                                                                                                                                                      6. Alternative communication tools (emoji reactions, quick replies).
+UI Changes:
+                                                                                                                                                      * Microphone icon hidden/disabled.
+                                                                                                                                                      * "Record video" option highlighted for verbal questions.
+                                                                                                                                                      * Text input always available as alternative.
+________________
+Module 4: Cognitive Accessibility Module
+Activates when: Student selects "ADHD", "Dyslexia", or "Cognitive"
+Features:
+                                                                                                                                                      1. Simplified UI (reduced clutter, fewer options per screen).
+                                                                                                                                                      2. Content chunking (break into 2-3 sentence sections with headings).
+                                                                                                                                                      3. Progress indicators ("Section 3 of 8", "45% complete").
+                                                                                                                                                      4. Focus mode (hide sidebar, notifications, distractions).
+                                                                                                                                                      5. Extended time on assessments (configurable 1.5x, 2.0x, 3.0x multiplier).
+                                                                                                                                                      6. Color-coded organization (subjects, priority levels).
+                                                                                                                                                      7. Reading assistance (text highlighting, line guides, dyslexia font option).
+                                                                                                                                                      8. Reminders for deadlines (push notifications, email, in-app).
+UI Changes:
+                                                                                                                                                      * One task per screen (minimal multi-tasking).
+                                                                                                                                                      * Large, clear buttons with icons.
+                                                                                                                                                      * Simplified language (shorter sentences).
+                                                                                                                                                      * Frequent save points ("Your progress is saved").
+________________
+Module 5: Navigation Accessibility Module
+Activates when: Any disability selected (universal benefit)
+Features:
+                                                                                                                                                      1. Full keyboard-only navigation (Tab, Shift+Tab, Enter, Space, Arrow keys).
+                                                                                                                                                      2. Voice commands (speech input for navigation: "Go to dashboard", "Open messages").
+                                                                                                                                                      3. Switch control compatibility (single-button navigation for motor disabilities).
+                                                                                                                                                      4. Customizable keyboard shortcuts (user-defined).
+                                                                                                                                                      5. Skip links (jump to main content, jump to navigation).
+                                                                                                                                                      6. Clear focus indicators (visual highlight on focused element).
+                                                                                                                                                      7. Breadcrumb navigation (Home > Course > Assignment).
+                                                                                                                                                      8. Simplified menu structures (max 7 items per menu).
+UI Changes:
+                                                                                                                                                      * All interactive elements keyboard accessible.
+                                                                                                                                                      * Tab order logical (left-to-right, top-to-bottom).
+                                                                                                                                                      * Focus trap in modals (can't accidentally tab out).
+                                                                                                                                                      * Escape key closes dialogs.
+________________
+5. Success Metrics & KPIs
+5.1 User Adoption
+                                                                                                                                                      * Target: 50,000 active students within 12 months.
+                                                                                                                                                      * Target: 100+ institutions within 12 months.
+                                                                                                                                                      * Measure: Monthly Active Users (MAU), Weekly Active Users (WAU).
+5.2 Accessibility Coverage
+                                                                                                                                                      * Target: 100% of content available in all required formats.
+                                                                                                                                                      * Target: < 5 minute average Tier 1 conversion time.
+                                                                                                                                                      * Measure: % content with complete conversions, average processing time.
+5.3 Teacher Efficiency
+                                                                                                                                                      * Target: 90% reduction in time spent on accessibility.
+                                                                                                                                                      * Baseline: 5 hours/week currently spent on manual conversions.
+                                                                                                                                                      * Target: < 30 minutes/week with automation.
+                                                                                                                                                      * Measure: Time tracking surveys, teacher satisfaction scores.
+5.4 Student Outcomes
+                                                                                                                                                      * Target: 20% improvement in course completion rates for students with disabilities.
+                                                                                                                                                      * Target: 15% improvement in average grades.
+                                                                                                                                                      * Measure: Semester-over-semester completion rates, GPA comparison.
+5.5 Platform Quality
+                                                                                                                                                      * Target: 95%+ Tier 1 conversion accuracy.
+                                                                                                                                                      * Target: < 10% Tier 2 rejection rate.
+                                                                                                                                                      * Measure: Teacher approval rates, error logs.
+
+________________
+6. Risks & Mitigation
+Risk 1: AI Conversion Quality
+                                                                                                                                                         * Risk: Auto-generated Braille/captions have errors.
+                                                                                                                                                         * Impact: High - student learning compromised.
+                                                                                                                                                         * Mitigation: Tier 2 review process, quality scoring, teacher training.
+Risk 2: Scalability
+                                                                                                                                                         * Risk: Platform crashes at launch.
+                                                                                                                                                         * Impact: High - reputation damage.
+                                                                                                                                                         * Mitigation: Load testing, auto-scaling, gradual rollout.
+Risk 3: Low Teacher Adoption
+                                                                                                                                                         * Risk: Teachers don't trust automation.
+                                                                                                                                                         * Impact: High - value proposition fails.
+                                                                                                                                                         * Mitigation: Pilot program, testimonials, show time saved metrics.
+Risk 4: API Costs
+                                                                                                                                                         * Risk: Third-party API costs exceed budget.
+                                                                                                                                                         * Impact: Medium - financial sustainability.
+                                                                                                                                                         * Mitigation: Caching, batch processing, usage-based pricing.
+Risk 5: Misconfigured Hierarchy or Enrollment Rules
+                                                                                                                                                         * Risk: Incorrect hierarchy or elective configuration leads to wrong content visibility or enrollment errors at scale.
+
+                                                                                                                                                         * Impact: High—students could miss required content or access wrong materials.
+
+                                                                                                                                                         * Mitigation: Validation tools, simulation/preview of changes, strong audit logs, and admin training.
+
+________________
+7. Out of Scope (Future V2)
+NOT in MVP:
+                                                                                                                                                            * AI tutoring / personalized recommendations.
+                                                                                                                                                            * Gamification / badges.
+                                                                                                                                                            * Calendar integration (Google/Outlook).
+                                                                                                                                                            * Live classroom captioning (real-time).
+                                                                                                                                                            * VR/AR experiences.
+                                                                                                                                                            * Mental health check-ins.
+                                                                                                                                                            * Automated IEP generation.
+                                                                                                                                                            * Third-party app marketplace.
+________________
+Appendix: Competitive Analysis
+Platform
+	Multi-Disability?
+	Auto-Conversion?
+	WCAG AAA?
+	Our Advantage
+	Blackboard Ally
+	No
+	Partial (audio only)
+	AA
+	✓ Full multi-disability, all formats
+	Canvas Studio
+	No
+	Captions only
+	AA
+	✓ Modular, Tier 2/3 quality
+	Microsoft Immersive Reader
+	Partial
+	TTS only
+	Unknown
+	✓ All 5 modules
+	Bookshare
+	Blind/dyslexic only
+	Books only
+	N/A
+	✓ Full curriculum
+	3Play Media
+	Deaf only
+	Manual captions
+	AA
+	✓ Automated, multi-disability
+	Key Differentiator: Only platform where deaf-blind student with ADHD uses ONE account and accesses content auto-converted to Braille + simplified + captioned simultaneously.
+________________
+Would you like me to help draft the separate "institute-ERP" subsection for deployment modes as suggested in the Pro update?

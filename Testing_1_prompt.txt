@@ -1,0 +1,112 @@
+## The Full Testing Prompt
+
+Once you confirm Playwright is working, paste this:
+```
+You are a professional QA tester. My web app is running at 
+http://localhost:54321
+
+Use Playwright browser tools to test every feature of this 
+accessible education platform. Control the browser like a 
+real user would — click buttons, fill forms, navigate pages.
+
+First read server/seed.ts to find the exact login credentials 
+for the test admin, teacher, and student accounts.
+
+Then follow this complete testing checklist. For each item:
+- Actually perform the action in the browser
+- Take a screenshot at key moments
+- Record: WORKS / PARTIAL / BROKEN
+- If broken: copy the exact error message or describe 
+  exactly what happens on screen
+
+─────────────────────────────
+AUTH TESTS
+─────────────────────────────
+1. Open http://localhost:5000 — does login page appear?
+2. Login with wrong password — does error message show?
+3. Login as student — does it redirect to student dashboard?
+4. Logout — does logout button exist and work?
+5. Login as teacher — does it redirect to teacher dashboard?
+6. Logout and login as admin — does admin dashboard load?
+
+─────────────────────────────
+STUDENT TESTS (logged in as student)
+─────────────────────────────
+7. Dashboard — does it show real courses and data?
+8. Navigate to Courses — does list load?
+9. Open a course — do tabs (Content, Assessments, Messages) work?
+10. Open a content item — does viewer load?
+11. Try switching content format (Audio, Braille, etc)
+12. Start an assessment — does question appear?
+13. Answer a question and click Save & Exit — does it save?
+14. Resume the same assessment — does it remember answers?
+15. Submit the assessment — does it complete?
+16. Open Messages — do threads load?
+17. Send a message — does it appear in the thread?
+18. Open Announcements — do they load?
+19. Open Accessibility Profile — does the form load?
+20. Change a preference and save — does it persist after refresh?
+
+─────────────────────────────
+TEACHER TESTS (logged in as teacher)
+─────────────────────────────
+21. Dashboard — does it show courses and conversion queue?
+22. Open a course — does content list appear?
+23. Upload a file — does the upload modal open?
+24. Select a file and submit upload — what happens?
+25. Does the uploaded file appear in the content list?
+26. Click Delete on a content item — does impact modal appear?
+27. Confirm delete — does item move to trash?
+28. Open Trash — does the deleted item appear?
+29. Restore the item — does it come back?
+30. Open Conversion Queue — do pending items appear?
+31. Approve a conversion — does status change?
+32. Reject a conversion — does status change?
+33. Create an assessment — does form work and save?
+34. Create an announcement — does it save and appear?
+35. Open Messages — can teacher send a message?
+
+─────────────────────────────
+ADMIN TESTS (logged in as admin)
+─────────────────────────────
+36. Dashboard — do all stats cards show real numbers?
+37. Hierarchy tree — does it show institute structure?
+38. Click a hierarchy node — do the panels filter?
+39. Users page — does the user list load?
+40. Create a single new user — does it save?
+41. Bulk import via CSV — does the upload work?
+    (Create a simple test CSV with 2 student rows first)
+42. Assign a teacher to a course — does it save?
+43. Enrollment dashboard — does it load?
+44. Enroll a student manually — does it save?
+45. Conversion monitor — does it show all jobs?
+46. Platform settings — do all 6 tabs load?
+47. Change a setting and save — does it persist?
+48. Analytics/reports — do charts and tables load?
+
+─────────────────────────────
+GENERAL CHECKS
+─────────────────────────────
+49. Open browser console — list every red error message
+50. Try accessing /admin while logged in as student — 
+    are you redirected to login?
+51. Try accessing /student while logged in as teacher — 
+    are you redirected?
+52. Refresh the page while logged in — do you stay logged in?
+
+─────────────────────────────
+FINAL REPORT
+─────────────────────────────
+After completing all tests, give me a report in this format:
+
+WORKS PERFECTLY (list feature numbers):
+
+PARTIALLY WORKING (feature number + what works + what doesn't):
+
+COMPLETELY BROKEN (feature number + exact error or behavior):
+
+CONSOLE ERRORS:
+(copy each red error message exactly)
+
+TOP 10 PRIORITY FIXES:
+(ordered by importance — what breaks the most user flows first)

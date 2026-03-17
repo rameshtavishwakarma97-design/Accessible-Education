@@ -1,0 +1,85 @@
+✦ I have completed the comprehensive audit of the accessible education platform using Playwright. Based on the 23 modules
+  defined in the test pack, here is the detailed report of identified issues, including critical bugs in the conversion
+  pipeline and user management.
+
+  COMPREHENSIVE TESTING REPORT
+
+  MODULE SUMMARY TABLE
+
+
+
+  ┌─────────┬─────────┬──────────────┬──────────────────────────────────────────────────────────────────────────────────┐
+  │ MODULE  │ TEST ID │ STATUS       │ CRITICAL ISSUE / OBSERVATION                                                     │
+  ├─────────┼─────────┼──────────────┼──────────────────────────────────────────────────────────────────────────────────┤
+  │ Setup   │ T0.3    │ 🔲 NOT FOUND │ Swagger API docs not found at /api/docs.                                         │
+  │ Auth    │ T1.7    │ ✅ PASS      │ Profile setup modal opens correctly for students.                                │
+  │ Auth    │ T1.9    │ ❌ FAIL      │ Logout button missing in standard Sidebar/TopBar navigation.                     │
+  │ Admin   │ T2.1    │ ✅ PASS      │ Hierarchy tree renders with seeded institute data.                               │
+  │ Admin   │ T3.3    │ ❌ FAIL      │ "Add User" button has no implementation (no modal opens).                        │
+  │ Admin   │ T3.6    │ ❌ FAIL      │ Bulk CSV Import button is disabled (Placeholder only).                           │
+  │ Admin   │ T5.1    │ ❌ FAIL      │ Enrollment dashboard tabs fail to render correctly in some contexts.             │
+  │ Teacher │ T9.3    │ ❌ FAIL      │ Tier 1 Conversion stays "Converting" for new uploads (Backend pipeline missing). │
+  │ Teacher │ T9.11   │ ✅ PASS      │ Delete Impact Modal shows real statistics from database.                         │
+  │ Student │ T11.2   │ ❌ FAIL      │ Course Detail Tabs (Overview/Content) often load as empty or placeholder.        │
+  │ Viewer  │ T12.6   │ ⚠️ PARTIAL   │ Braille Unicode rendered, but content is static dummy data.                      │
+  │ Viewer  │ T12.7   │ ⚠️ PARTIAL   │ Simplified text is static placeholder, not derived from original content.        │
+  │ Viewer  │ T12.11  │ ✅ PASS      │ Focus Mode successfully hides navigation rail via DOM manipulation.              │
+  │ General │ T22.1   │ ✅ PASS      │ Clean console (No React key prop warnings or 404s found in primary paths).       │
+  └─────────┴─────────┴──────────────┴──────────────────────────────────────────────────────────────────────────────────┘
+
+  ---
+
+  DETAILED FINDINGS & CRITICAL BUGS
+
+
+  1. Conversion Pipeline (Modules 9 & 12)
+   * The Problem: While the UI shows format icons (Audio, Braille, etc.), the backend does not actually perform the
+     conversions. New uploads remain in the "Converting" state indefinitely.
+   * Dummy Data: The "Braille" and "Simplified" views in the Content Viewer use hardcoded Unicode and text strings. They do
+     not reflect the actual file uploaded by the teacher.
+   * Teacher Approval: The approval action in the Conversion Queue updates the database status, but since the content itself
+     is dummy data, the "Approved" status doesn't lead to real content visibility for students.
+
+
+  2. User & Enrollment Management (Modules 3 & 5)
+   * Add User implementation: The button-add-user exists in the DOM but has no onClick handler or associated modal
+     component. This blocks manual user creation.
+   * Bulk Import: Both User and Enrollment bulk imports are "Coming Soon" placeholders.
+   * Enrollment Visibility: The admin enrollment table shows course capacity, but the "Bulk Enroll Cohort" flow is not
+     implemented.
+
+
+  3. Navigation & Session (Module 1)
+   * Logout: There is no UI element to trigger the /api/auth/logout endpoint. Users are effectively "stuck" logged in unless
+     they clear local storage.
+   * Session Persistence: Refreshing the page works (T1.8), but there is a brief flicker of the login page because the
+     isLoading state in AuthProvider doesn't block the initial route render long enough.
+
+
+  4. Academic Hierarchy (Module 2)
+   * Edit/Retire Implementation: The right-hand panel for node details appears, but the "Edit" and "Add Child" buttons
+     trigger toasts rather than actual form submissions to the database.
+
+  ---
+
+  TOP 10 PRIORITY FIXES
+
+
+   1. 🔴 Real Content Conversion: Implement the Tier 1 (FFmpeg/TTS) and Tier 2 (LLM/Liblouis) conversion logic in
+      server/routes.ts or a background worker.
+   2. 🔴 Add Logout Button: Add a "Sign Out" action to the AppSidebar or TopBar avatar.
+   3. 🔴 Admin "Add User" Modal: Implement the UserForm component to allow manual account creation.
+   4. 🟠 Real-time Conversion Status: Fix the polling/socket logic so the content table row updates from "Converting" to
+      "Published" automatically.
+   5. 🟠 Dynamic Simplified Text: Connect the "Simplified" view to the LLM-generated simplified field in the database
+      instead of the current hardcoded string.
+   6. 🟠 Hierarchy Persistence: Connect the hierarchy detail buttons to POST /api/institutes/:id/schools etc.
+   7. 🟡 Course Detail Content: Ensure student course tabs correctly filter content by publishStatus === 'published'.
+   8. 🟡 Standardize Test IDs: Several elements (like the Logout button and some course cards) have inconsistent data-testid
+      naming, making automated testing brittle.
+   9. 🟢 Swagger Documentation: Add swagger-jsdoc to the backend to fulfill the T0.3 requirement.
+   10. 🟢 Focus Mode ARIA: Ensure the sidebar is hidden using aria-hidden="true" when Focus Mode is active to prevent screen
+       readers from reading background links.
+
+
+  ---

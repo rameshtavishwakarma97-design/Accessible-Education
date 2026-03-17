@@ -1,0 +1,205 @@
+# Technical Requirements – Accessible Education Platform (Hybrid Local + Cloud Services)
+**Version:** 1.2  
+**Date:** February 18, 2026  
+**Status:** Ready for Development
+
+---
+
+## 0. Scope, Goals, and Assumptions
+
+### 0.1 Goal
+Implement the PRD v1.2 features with:
+
+- Multi‑level institute hierarchy and configurable terms.  
+- Course catalog, courseOfferings, elective groups, and enrollments.  
+- Teacher content upload pipeline backed by Azure Blob + AI conversion workers.  
+- Student‑facing accessible content viewer driven by accessibility profiles.  
+- Multi‑modal assessments and messaging.  
+- Admin hierarchy, user management, and analytics dashboards.  
+
+### 0.2 Deployment & Infra Model
+- App runtime (React frontend, NestJS API, Python workers) runs on **localhost** (Docker or direct commands).  
+- Data and files live in **cloud free tiers**:
+  - MongoDB Atlas M0 as primary DB.  
+  - Azure Blob Storage for original and converted content files.  
+  - Redis (local container by default) for queues/cache; optional Redis Cloud / Azure Cache.  
+
+### 0.3 Non‑Goals (Now)
+- Production‑grade SSO, LMS integration, autoscaling, or managed Kubernetes.  
+- Complex IaC (Helm, ARM/Bicep) beyond minimal Docker Compose.
+
+---
+
+## 1. Technology Stack Summary
+
+### 1.1 Frontend
+- React 18 + TypeScript, React Router.  
+- State: Redux Toolkit or Zustand.  
+- UI: Material UI (MUI) + custom theme tokens (see UI–UX spec).  
+- Styling: Tailwind CSS or MUI SX, but all colors/spacing/typography from theme tokens.  
+- Testing: Jest + React Testing Library.
+
+### 1.2 Backend API
+- Node.js LTS + TypeScript.  
+- NestJS framework (preferred).  
+- RESTful JSON APIs with OpenAPI/Swagger docs.  
+- Auth: JWT (access + refresh) with HTTP‑only cookies.  
+- Validation: class‑validator/Zod.  
+
+### 1.3 AI / Conversion Workers
+- Python 3.11 services:
+  - Speech‑to‑Text: Whisper (faster‑whisper / whisper.cpp).  
+  - Text‑to‑Speech: Coqui TTS.  
+  - Braille: Liblouis.  
+  - Simplified Text: heuristic simplifier (Phase 1), LLM‑based later.  
+- Workers read jobs from Redis, pull files from Azure Blob, push outputs back to Blob, and update MongoDB.
+
+### 1.4 Data & Storage
+- MongoDB Atlas M0 cluster (Azure region close to Blob).  
+- Azure Blob Storage (GPv2, hot tier) with `content` container.  
+- Redis in Docker (`redis:latest`) for job queues and ephemeral caching.
+
+---
+
+## 2. Cloud Services to Provision
+
+(Same as v1.0 TRD, with clarified variable names.)
+
+- MongoDB Atlas M0 cluster, DB user and connection string (`MONGODB_URI`).  
+- Azure storage account & container (`AZURE_STORAGE_ACCOUNT_NAME`, `AZURE_STORAGE_ACCOUNT_KEY`, `AZURE_BLOB_CONTAINER=content`).  
+- Optional external Redis; default is local Docker with `REDIS_URL=redis://localhost:6379`.
+
+---
+
+## 3. Project Structure
+
+Monorepo:
+
+- `/backend` – NestJS API.  
+- `/frontend` – React app.  
+- `/workers` – Python AI conversion services.  
+- `/infra` – Docker Compose, scripts.  
+- `/docs` – PRD, TRD, UI–UX, etc.
+
+---
+
+## 4. Core Data Models (MongoDB)
+
+High‑level collections (simplified):
+
+- `users` – identity, role, accessibilityProfile, academic context (programId, yearId, divisionId).  
+- `institutes`, `schools`, `departments`, `programs`, `years`, `divisions`, `terms`.  
+- `courses` – catalog entries.  
+- `courseOfferings` – course + term + program/year/division/sections + teachers + capacity.  
+- `electiveGroups` – elective pools and rules.  
+- `enrollments` – studentId + courseOfferingId + sectionName + status.  
+- `contentItems` – teacher content, Azure blob paths, formats, scoping, publishStatus.  
+- `conversionJobs` – conversion tasks with jobType, status, errors.  
+- `assessments`, `submissions`.  
+- `threads`, `messages`.  
+- `analyticsEvents`, `analyticsSnapshots`.  
+- `auditLogs`.
+
+(Full schemas can mirror v1.0 TRD; only key relationships are emphasized below.)
+
+---
+
+## 5. Chronological Implementation Phases (Updated)
+
+### Phase 1 – Backend Skeleton & Config
+- Same as v1.0: NestJS project, ConfigModule, MongoDB Atlas connection, Azure Blob client wrapper, Redis connection, `/health` endpoint.  
+
+### Phase 2 – Identity, Auth, and RBAC
+- Implement `users` with roles and minimal academic context.  
+- JWT auth, role decorators, and basic RBAC guard.  
+
+### Phase 3 – Institute & Academic Hierarchy
+- CRUD APIs for institute hierarchy collections.  
+- Attach hierarchy references to `users` (students, staff) with validation.  
+
+### Phase 4 – Course Catalog, Offerings & Enrollment
+**Objective:** Make `courseOfferings` the central join point.
+
+- APIs for:
+  - `courses` CRUD with prerequisites.  
+  - `courseOfferings` CRUD: assign programIds, yearIds, termId, sections[], teachers[].  
+  - `electiveGroups` CRUD with min/max selection rules.  
+  - `enrollments`:
+    - `GET /me/courses?termId` for student.  
+    - `POST /me/enroll` with validation for prerequisites, capacity, elective rules.  
+
+### Phase 5 – Content Storage & Azure Blob Integration
+- `contentItems` schema:
+  - `courseId`, `courseOfferingId` (required), `sections[]`, `ownerTeacherId`, hierarchy ids, type, tags.  
+  - `original.azureBlobPath`, `availableFormats.*`, `publishStatus`, `visibilityScope`.  
+- `POST /content`:
+  - Validates teacher is assigned to the chosen courseOffering.  
+  - Uploads file to Blob under `originals/{contentId}/{filename}`.  
+  - Creates Tier‑1 and Tier‑2 `conversionJobs`.  
+
+### Phase 6 – Conversion Pipeline
+- Worker pulls `conversionJobs`, runs Whisper/Coqui/Liblouis/simplifier, uploads outputs to `converted/{contentId}/...`.  
+- Updates `contentItems.availableFormats` and `conversionJobs.status`.  
+- Tier‑2 jobs end in `READY_FOR_REVIEW`.  
+
+Teacher APIs:
+- `GET /conversions/my-queue` – Tier‑2 jobs awaiting review.  
+- `POST /conversions/:jobId/approve|reject|retry`.  
+
+Admin APIs:
+- `GET /admin/conversions?status=` – overview across institute.
+
+### Phase 7 – Accessibility Profiles & Content Viewer
+- Profile CRUD: `GET/PUT /me/accessibility-profile`.  
+- Frontend loads profile on login and caches in global state.  
+- Viewer APIs:
+  - `GET /content/for-me` – content feed per student across enrolled courseOfferings.  
+  - `GET /courses/:offeringId/content` – per‑course list.  
+- Viewer logic picks default format per profile and persists user overrides per contentId.
+
+### Phase 8 – Assessments
+- `assessments` tied to `courseOfferingId`.  
+- `submissions` with time limits adjusted by `extendedTimeMultiplier` from profile.  
+- Frontend Assessment screen uses accessible navigation, accepts multiple response formats, and records to Blob where needed.
+
+### Phase 9 – Messaging & Notifications
+- `threads` scoped to courseOffering/section or direct.  
+- `messages` with type TEXT/AUDIO/VIDEO/FILE; audio/video use conversion worker for transcripts/captions.  
+- Basic email notifications via worker queue.
+
+### Phase 10 – Admin Dashboard & Analytics
+- Middleware logs `analyticsEvents` on key actions (content view, format used, assessment completion, message sent, conversion failure).  
+- Periodic job aggregates into `analyticsSnapshots` with dimensions: institute hierarchy, courseOffering, disability type/module, time period.  
+- Admin APIs feed charts/tables for dashboard.
+
+---
+
+## 6. Environment & Configuration
+
+`.env` keys (no secrets checked into Git):
+
+- `MONGODB_URI=`  
+- `AZURE_STORAGE_ACCOUNT_NAME=`  
+- `AZURE_STORAGE_ACCOUNT_KEY=`  
+- `AZURE_BLOB_CONTAINER=content`  
+- `REDIS_URL=redis://localhost:6379`  
+- `JWT_SECRET=`  
+- `PORT=4000`  
+- `NODE_ENV=development`
+
+---
+
+## 7. Security & Privacy
+
+- Treat `accessibilityProfile` and disability information as highly sensitive.  
+- RBAC enforcement at controller and service layers; never trust client.  
+- Audit log all reads/writes to disability data and all admin hierarchy changes.  
+- Validate content targeting rules before saving to prevent leakage.
+
+---
+
+## 8. Testing & Observability (MVP Level)
+
+- Unit tests for core services (auth, hierarchy, enrollment, content upload, conversion orchestration).  
+- Basic integration tests using in‑memory Mongo/Redis or test containers.  
+- Logging with request IDs and structured fields (userId, instituteId, courseOfferingId where relevant).

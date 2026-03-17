@@ -1,0 +1,229 @@
+# UI–UX Specification – Accessible Education Platform
+**Version:** 1.2  
+**Date:** February 18, 2026  
+
+---
+
+## 1. Design Principles & Brand
+
+- Dark, “tech‑luxury” theme with high contrast and clean typography.  
+- Accessibility‑first: WCAG 2.1 AA for all text and UI elements.  
+- Minimal, information‑dense, non‑playful; calm, serious, and modern.  
+
+---
+
+## 2. Design Tokens (Global)
+
+### 2.1 Colors
+(As defined in v1.0; summarized)
+
+- Backgrounds: `bg.body`, `bg.surface`, `bg.surfaceElevated`.  
+- Text: `text.primary`, `text.secondary`, `text.subtle`.  
+- Accent: `accent.primary` (indigo), `accent.secondary` (cyan), `accent.primarySoft`, `accent.glow`.  
+- Status: `success`, `warning`, `danger`, `info`.  
+
+### 2.2 Typography
+- Font: Inter (400/500/600/700).  
+- Scale: `display`, `h1`, `h2`, `h3`, `body`, `bodySmall`, `mono`.  
+
+### 2.3 Spacing & Radius
+- 4px grid: xxs–2xl.  
+- Radius: `radius.sm` (inputs), `radius.md` (cards), `radius.lg` (modals).  
+
+### 2.4 Breakpoints
+- Mobile: 0–767px; Tablet: 768–1023px; Desktop: 1024–1439px; Wide: ≥1440px.  
+
+(See original UI–UX doc for exact values.)
+
+---
+
+## 3. App Shell & Navigation
+
+### 3.1 Layout (Desktop)
+- **Top Bar (64px):** Logo + product name (left), page title + breadcrumb (center), notifications + avatar (right).  
+- **Left Navigation (min‑width 240px):**  
+  - Student: Dashboard, Courses, Content, Assessments, Messages, Profile.  
+  - Teacher: Dashboard, Courses, Content Library, Assessments, Messages.  
+  - Admin: Dashboard, Hierarchy, Users, Courses, Conversions, Analytics, Settings.  
+- **Main Content:** Max width 1440px, centered, using cards and tables on `bg.surface`.  
+
+### 3.2 Interaction
+- Hover: subtle background + border change, soft accent glow.  
+- Focus: high‑contrast outline with `accent.primarySoft` and 2px border.  
+- Motion: 150–200 ms for hover/press, 250–300 ms for panel transitions; respect “reduce motion”.
+
+---
+
+## 4. Core Components
+
+- **Buttons:** Primary, Secondary, Ghost, Danger variants with large tap targets (≥44×44px).  
+- **Inputs:** Labeled text fields, selects, sliders, toggles, checkboxes with helper/error text.  
+- **Cards:** Used for course tiles, dashboards, summary boxes.  
+- **Tables/Data Grids:** For enrollments, content libraries, analytics; sticky header, clear row hover.  
+- **Chips/Tags:** For disabilities, course type (Core/Elective), formats (Audio, Braille, Simplified).  
+- **Modals & Drawers:** For content upload, profile editing, assessment configuration.  
+- **Toasts/Notifications:** Compact bottom‑right (desktop), top full‑width (mobile).
+
+(Visual styles match v1.0 spec.)
+
+---
+
+## 5. Key Screens
+
+### 5.1 Student – Dashboard
+**Goal:** Immediate awareness of academic context and current workload.
+
+Layout (Desktop):
+- Left: navigation rail.  
+- Main column:
+  - Card: **“Dashboard”** header with breadcrumb `Institute › Program › Year › Division › Term`.  
+  - Card: **My Courses This Term** – grid of courseOffering cards with:
+    - Course code & name.  
+    - Term, section.  
+    - Teacher name.  
+    - Progress bar (% content viewed / assessments completed).  
+  - Card: **New Content** – vertical list of recently added `contentItems` across enrolled offerings, with:
+    - Title, course chip, time.  
+    - Format icons (audio, captions, Braille, simplified).  
+- Right column:
+  - Card: **Accessibility Profile Summary** – active modules, quick “Edit Profile” link.  
+  - Card: **Upcoming Assessments & Deadlines**.
+
+Mobile: cards stacked vertically.
+
+---
+
+### 5.2 Student – Courses & Course Detail
+
+**Courses List:**
+- Route: `/student/courses`.  
+- Grid/list of current term courseOffering cards; filters for term.
+
+**Course Detail (Student):**
+- Header: course code + name + term + section, plus breadcrumb.  
+- Tabs:
+  - **Overview:** short description, teacher info, schedule, announcements.  
+  - **Content:** table of content items:
+    - Columns: Title, Type, Available Formats (icons), Status (New/Viewed), Last Updated.  
+  - **Assessments:** list of upcoming/past assessments with status and scores.  
+  - **Messages:** per‑course thread list.  
+
+---
+
+### 5.3 Student – Content Viewer
+
+**Header:**
+- Left: title, course breadcrumb.  
+- Right: Format Selector dropdown (Original, Audio, Captions, Transcript, Simplified, High‑Contrast, Braille) + quick font‑size and contrast controls.
+
+**Body:**
+- For text/PDF:
+  - Central document viewer with zoom, page navigation, “Section X of Y” indicator if chunked.  
+  - TTS play/pause/speed controls.  
+- For video:
+  - Video player at top with captions toggle and speed; collapsible right rail with transcript.  
+
+**Footer:**
+- Accessibility quick toggles: font size slider, high‑contrast toggle, focus mode (hides left nav).  
+
+Keyboard & screen‑reader behavior follows WCAG patterns.
+
+---
+
+### 5.4 Teacher – Dashboard (Teaching Overview)
+
+Layout:
+- Header: “Teaching Overview” + term selector (dropdown).  
+- Row 1:
+  - Card: **My Courses** – grid of courseOffering cards with:
+    - Course code/name, term, sections.  
+    - Students count, content items count.  
+  - Card: **Conversion Queue** – summary counts:
+    - X Braille, Y Simplified, Z Sign‑Language awaiting review.  
+- Row 2:
+  - Card: **Recent Content Activity** – latest uploads and their conversion statuses.  
+
+Clicking a course card opens Teacher Course Detail.
+
+---
+
+### 5.5 Teacher – Course Detail & Content
+
+**Course Detail (Teacher):**
+- Same visual shell as student, with tabs:
+  - **Content:** table:
+    - Columns: Title, Type, Formats (icons with status color), Publish Status (Draft/Published), Last Updated, Actions (Preview, Edit, Review Conversions, Delete).  
+  - **Assessments:** assessment list for that offering.  
+  - **Students:** roster with disability chips and completion % (high‑level only).  
+  - **Messages:** threads for this courseOffering.  
+
+**Upload Content Flow:**
+- Button: “+ Upload Content” at top of Content tab.  
+- Modal with three sections:
+  1. **Basic Info** – Title, Description, Type, Tags.  
+  2. **Academic Targeting** – Course Offering (pre‑filled), Section(s), optional specific students/elective group.  
+  3. **File** – drag‑and‑drop zone; show supported formats.  
+
+Upon submit, show inline toast and conversion status row.
+
+---
+
+### 5.6 Teacher – Conversion Queue
+
+- Route: `/teacher/conversions`.  
+- Table:
+  - Columns: Content Title, Course/Offering, Sections, Format Type, Status, Last Updated, Actions.  
+- Side panel on row click:
+  - Preview area (e.g., simplified text, Braille representation).  
+  - Buttons: Approve (primary), Reject (danger), Retry (secondary).  
+
+---
+
+### 5.7 Admin – Dashboard
+
+Layout:
+- Top strip: stats cards – Total Students, Students with Disabilities, Total Teachers, Content Items, Content Accessibility Coverage (%).  
+- Left panel: **Hierarchy tree** (Institute → School → Department → Program → Year → Division).  
+- Center panel: **Accessibility Metrics** – charts for:
+  - Students by disability type.  
+  - Format usage (audio vs text vs Braille vs simplified).  
+  - Conversion success/failure rates.  
+- Right panel: **Recent Alerts** – e.g., “10 content items missing Braille in PGDM › IM › Year 1” and “5 conversion jobs failed”.  
+
+---
+
+### 5.8 Admin – Courses & Conversions
+
+**Courses View:**
+- Route: `/admin/courses`.  
+- Filters: Term, School, Department, Program, Year, Division.  
+- Table:
+  - Course Code, Course Name, Term, Program/Year/Division, Sections, Teachers, Students (# / # disabled), Content Items, Accessibility Coverage %.  
+
+**Conversions Monitor:**
+- Route: `/admin/conversions`.  
+- Filters: Term, Program, Course, Format Type, Status.  
+- Table of `conversionJobs` with error snippets and links to content/teacher.  
+
+---
+
+## 6. Accessibility UX Requirements
+
+- All text and key UI pairs meet WCAG 2.1 AA contrast.  
+- Full keyboard navigation with logical tab order and focus indicators.  
+- ARIA landmarks and labels for custom components (tabs, modals, accordions, tables).  
+- Respect OS “reduce motion” preference by disabling non‑essential animations.
+
+---
+
+## 7. Implementation Notes for AI‑Assisted Coding
+
+- Put all tokens in `theme.ts` / Tailwind config.  
+- Create primitive components: `Button`, `Card`, `Input`, `Select`, `Table`, `Tabs`, `Modal`, `Chip`, `Toast`.  
+- Build page components matching the route + name conventions:
+  - `StudentDashboardPage`, `StudentCoursesPage`, `StudentCourseDetailPage`, `ContentViewerPage`.  
+  - `TeacherDashboardPage`, `TeacherCourseContentPage`, `TeacherConversionQueuePage`.  
+  - `AdminDashboardPage`, `AdminCoursesPage`, `AdminConversionsPage`.  
+- In prompts to Copilot/other models, always specify:
+  - Route, required data (API endpoints and fields), and which primitives to compose.  
+  - That styling must use design tokens, not ad‑hoc colors/spacings.
