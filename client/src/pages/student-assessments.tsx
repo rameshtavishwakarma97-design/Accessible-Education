@@ -3,12 +3,60 @@ import { TopBar } from "@/components/top-bar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusChip } from "@/components/disability-chips";
-import { assessments, courseOfferings, getDaysUntil } from "@/lib/mock-data";
-import { Clock, ArrowRight } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { useQuery } from "@tanstack/react-query";
+import { Clock, ArrowRight, Loader2 } from "lucide-react";
+
+async function fetchWithAuth(url: string) {
+  const token = localStorage.getItem("auth_token");
+  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error("Failed to load data");
+  return res.json();
+}
+
+function getDaysUntil(dateStr: string): number {
+  const now = new Date();
+  const target = new Date(dateStr);
+  return Math.ceil((target.getTime() - now.getTime()) / 86400000);
+}
 
 export default function StudentAssessments() {
-  const upcoming = assessments.filter((a) => a.status === "upcoming" || a.status === "in_progress");
-  const past = assessments.filter((a) => a.status === "completed" || a.status === "graded");
+  const { user } = useAuth();
+
+  const { data: myCourses } = useQuery({
+    queryKey: ["student-courses"],
+    queryFn: () => fetchWithAuth("/api/me/courses"),
+    enabled: !!user,
+  });
+
+  // Fetch assessments for all enrolled courses
+  const courseIds = (myCourses || []).map((c: any) => c.id);
+  const { data: assessmentsData, isLoading } = useQuery({
+    queryKey: ["student-assessments", courseIds],
+    queryFn: async () => {
+      const all = await Promise.all(
+        courseIds.map((coId: string) =>
+          fetchWithAuth(`/api/assessments?courseOfferingId=${coId}`).catch(() => [])
+        )
+      );
+      return all.flat();
+    },
+    enabled: !!user && courseIds.length > 0,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <TopBar title="Assessments" breadcrumb="B.Tech CS > Year 3 > Spring 2026" />
+        <main className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></main>
+      </div>
+    );
+  }
+
+  const assessments: any[] = assessmentsData ?? [];
+  const courses: any[] = myCourses ?? [];
+  const upcoming = assessments.filter((a: any) => a.status === "upcoming" || a.status === "in_progress");
+  const past = assessments.filter((a: any) => a.status === "completed" || a.status === "graded");
 
   return (
     <div className="flex flex-col h-full">
@@ -18,8 +66,8 @@ export default function StudentAssessments() {
           <section>
             <h2 className="font-serif text-lg font-semibold mb-4">Upcoming & In Progress</h2>
             <div className="space-y-3">
-              {upcoming.map((a) => {
-                const co = courseOfferings.find((c) => c.id === a.courseOfferingId);
+              {upcoming.map((a: any) => {
+                const co = courses.find((c: any) => c.id === a.courseOfferingId);
                 const days = getDaysUntil(a.dueDate);
                 return (
                   <Link key={a.id} href={`/student/assessments/${a.id}`}>
@@ -27,7 +75,7 @@ export default function StudentAssessments() {
                       <CardContent className="p-4 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Badge variant="outline" className="no-default-active-elevate font-mono text-xs">{co?.course.code}</Badge>
+                            <Badge variant="outline" className="no-default-active-elevate font-mono text-xs">{co?.course?.code}</Badge>
                             <h3 className="text-sm font-medium">{a.title}</h3>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1">
@@ -57,14 +105,14 @@ export default function StudentAssessments() {
           <section>
             <h2 className="font-serif text-lg font-semibold mb-4">Completed</h2>
             <div className="space-y-3">
-              {past.map((a) => {
-                const co = courseOfferings.find((c) => c.id === a.courseOfferingId);
+              {past.map((a: any) => {
+                const co = courses.find((c: any) => c.id === a.courseOfferingId);
                 return (
                   <Card key={a.id} data-testid={`card-assessment-${a.id}`}>
                     <CardContent className="p-4 flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge variant="outline" className="no-default-active-elevate font-mono text-xs">{co?.course.code}</Badge>
+                          <Badge variant="outline" className="no-default-active-elevate font-mono text-xs">{co?.course?.code}</Badge>
                           <h3 className="text-sm font-medium">{a.title}</h3>
                         </div>
                         <p className="text-xs text-muted-foreground mt-1">{a.type} · {a.questionCount} questions</p>

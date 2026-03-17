@@ -27,13 +27,13 @@ export default function PreLoginAccessibilityPage() {
             <Accessibility className="h-5 w-5" />
           </div>
           <h1 className="font-serif text-2xl font-semibold" data-testid="text-pre-login-title">
-            Accessibility Settings — Before You Log In
+            Accessibility Preferences
           </h1>
         </div>
 
         <p className="text-sm text-muted-foreground">
-          Customize your experience before signing in. These settings will be applied
-          immediately and saved until you set up your full profile.
+          Set up your reading preferences before signing in. These will apply immediately
+          and can be updated anytime from your profile.
         </p>
 
         <Card>

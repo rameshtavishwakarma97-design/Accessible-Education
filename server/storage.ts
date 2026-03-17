@@ -1,9 +1,9 @@
-import { eq, and, ilike, inArray, desc, sql } from "drizzle-orm";
+import { eq, and, ne, ilike, inArray, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   users, institutes, schools, departments, programs, years, divisions, terms,
   courses, courseOfferings, enrollments, electiveGroups, contentItems, conversionJobs,
-  progressTracking, assessments, submissions, threads, messages, announcements,
+  contentProgress, assessments, submissions, threads, messages, announcements,
   analyticsEvents, auditLogs, platformSettings,
   type User, type InsertUser, type Institute, type School, type Department,
   type Program, type Year, type Division, type Term, type Course, type CourseOffering,
@@ -81,9 +81,13 @@ export interface IStorage {
 
   createContentItem(data: Partial<ContentItem>): Promise<ContentItem>;
   getContentItem(id: string): Promise<ContentItem | undefined>;
-  listContentItems(filters?: { courseOfferingId?: string; publishStatus?: string; uploadedBy?: string }): Promise<ContentItem[]>;
+  listContentItems(filters?: { courseOfferingId?: string; publishStatus?: string; uploadedBy?: string; includeDeleted?: boolean }): Promise<ContentItem[]>;
   updateContentItem(id: string, data: Partial<ContentItem>): Promise<ContentItem | undefined>;
   deleteContentItem(id: string): Promise<void>;
+  softDeleteContentItem(id: string, deletedBy: string): Promise<ContentItem | null>;
+  restoreContentItem(id: string): Promise<ContentItem | null>;
+  permanentDeleteContentItem(id: string): Promise<void>;
+  getContentImpact(id: string): Promise<{ viewCount: number; progressCount: number; linkedAssessments: string[] }>;
 
   createConversionJob(data: Partial<ConversionJob>): Promise<ConversionJob>;
   getConversionJob(id: string): Promise<ConversionJob | undefined>;
@@ -143,7 +147,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(data: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values({ ...data, email: data.email.toLowerCase() }).returning();
+    const [user] = await db.insert(users).values({ ...data, email: data.email.toLowerCase() } as any).returning();
     return user;
   }
 
@@ -417,13 +421,30 @@ export class DatabaseStorage implements IStorage {
     return ci;
   }
 
-  async listContentItems(filters?: { courseOfferingId?: string; publishStatus?: string; uploadedBy?: string }): Promise<ContentItem[]> {
+  async listContentItems(filters?: {
+    courseOfferingId?: string;
+    publishStatus?: string;
+    uploadedBy?: string;
+    includeDeleted?: boolean;
+  }): Promise<ContentItem[]> {
     const conditions = [];
-    if (filters?.courseOfferingId) conditions.push(eq(contentItems.courseOfferingId, filters.courseOfferingId));
-    if (filters?.publishStatus) conditions.push(eq(contentItems.publishStatus, filters.publishStatus as any));
-    if (filters?.uploadedBy) conditions.push(eq(contentItems.uploadedBy, filters.uploadedBy));
-    if (conditions.length > 0) return db.select().from(contentItems).where(and(...conditions)).orderBy(desc(contentItems.createdAt));
-    return db.select().from(contentItems).orderBy(desc(contentItems.createdAt));
+    if (filters?.courseOfferingId)
+      conditions.push(eq(contentItems.courseOfferingId, filters.courseOfferingId));
+    if (filters?.publishStatus)
+      conditions.push(eq(contentItems.publishStatus, filters.publishStatus as any));
+    if (filters?.uploadedBy)
+      conditions.push(eq(contentItems.uploadedBy, filters.uploadedBy));
+    // Exclude soft_deleted by default unless explicitly requested
+    if (!filters?.includeDeleted && !filters?.publishStatus) {
+      conditions.push(ne(contentItems.publishStatus, 'soft_deleted' as any));
+    }
+    if (conditions.length > 0)
+      return db.select().from(contentItems)
+        .where(and(...conditions))
+        .orderBy(desc(contentItems.createdAt));
+    return db.select().from(contentItems)
+      .where(ne(contentItems.publishStatus, 'soft_deleted' as any))
+      .orderBy(desc(contentItems.createdAt));
   }
 
   async updateContentItem(id: string, data: Partial<ContentItem>): Promise<ContentItem | undefined> {
@@ -433,6 +454,55 @@ export class DatabaseStorage implements IStorage {
 
   async deleteContentItem(id: string): Promise<void> {
     await db.delete(contentItems).where(eq(contentItems.id, id));
+  }
+
+  async softDeleteContentItem(id: string, deletedBy: string): Promise<ContentItem | null> {
+    const now = new Date();
+    const permanentDeleteAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const [item] = await db.update(contentItems)
+      .set({
+        publishStatus: 'soft_deleted' as any,
+        deletedAt: now,
+        deletedByTeacherId: deletedBy,
+        permanentDeleteScheduledAt: permanentDeleteAt,
+      })
+      .where(eq(contentItems.id, id))
+      .returning();
+    return item ?? null;
+  }
+
+  async restoreContentItem(id: string): Promise<ContentItem | null> {
+    const [item] = await db.update(contentItems)
+      .set({
+        publishStatus: 'draft' as any,
+        deletedAt: null,
+        deletedByTeacherId: null,
+        permanentDeleteScheduledAt: null,
+      })
+      .where(eq(contentItems.id, id))
+      .returning();
+    return item ?? null;
+  }
+
+  async permanentDeleteContentItem(id: string): Promise<void> {
+    await db.delete(contentItems).where(eq(contentItems.id, id));
+  }
+
+  async getContentImpact(id: string): Promise<{ 
+    viewCount: number; 
+    progressCount: number; 
+    linkedAssessments: string[] 
+  }> {
+    const [item] = await db.select({
+      viewCount: contentItems.viewCount,
+      progressCount: contentItems.progressCount,
+      linkedAssessments: contentItems.linkedAssessments,
+    }).from(contentItems).where(eq(contentItems.id, id));
+    return {
+      viewCount: item?.viewCount ?? 0,
+      progressCount: item?.progressCount ?? 0,
+      linkedAssessments: (item?.linkedAssessments as string[]) ?? [],
+    };
   }
 
   async createConversionJob(data: Partial<ConversionJob>): Promise<ConversionJob> {
@@ -627,81 +697,117 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getHierarchyTree(instituteId: string): Promise<any> {
-    const inst = await this.getInstitute(instituteId);
-    if (!inst) return null;
+    try {
+      const inst = await this.getInstitute(instituteId);
+      if (!inst) {
+        // Return a safe empty root instead of null — frontend always gets a valid tree shape
+        console.warn(`[hierarchy] Institute not found: ${instituteId}`);
+        return { id: instituteId, name: "Unknown Institute", type: "institute", studentCount: 0, children: [] };
+      }
 
-    const schoolList = await this.listSchools(instituteId);
-    const tree: any = {
-      id: inst.id,
-      name: inst.name,
-      type: "institute",
-      studentCount: 0,
-      children: [],
-    };
-
-    for (const school of schoolList) {
-      if (!school.isActive) continue;
-      const deptList = await this.listDepartments(school.id);
-      const schoolNode: any = {
-        id: school.id,
-        name: school.name,
-        type: "school",
+      const tree: any = {
+        id: String(inst.id),
+        name: inst.name,
+        type: "institute",
         studentCount: 0,
         children: [],
       };
 
-      for (const dept of deptList) {
-        if (!dept.isActive) continue;
-        const progList = await this.listPrograms(dept.id);
-        const deptNode: any = {
-          id: dept.id,
-          name: dept.name,
-          type: "department",
+      let schoolList: any[] = [];
+      try { schoolList = await this.listSchools(instituteId); }
+      catch (e) { console.warn(`[hierarchy] Failed to load schools for institute ${instituteId}:`, e); }
+
+      for (const school of schoolList) {
+        if (!school.isActive) continue;
+        const schoolNode: any = {
+          id: String(school.id),
+          name: school.name,
+          type: "school",
           studentCount: 0,
           children: [],
         };
 
-        for (const prog of progList) {
-          if (!prog.isActive) continue;
-          const yearList = await this.listYears(prog.id);
-          const progNode: any = {
-            id: prog.id,
-            name: prog.name,
-            type: "program",
+        let deptList: any[] = [];
+        try { deptList = await this.listDepartments(school.id); }
+        catch (e) { console.warn(`[hierarchy] Failed to load departments for school ${school.id}:`, e); }
+
+        for (const dept of deptList) {
+          if (!dept.isActive) continue;
+
+          // Log orphaned department (schoolId mismatch)
+          if (String(dept.schoolId) !== String(school.id)) {
+            console.warn(`[hierarchy] Orphaned department ${dept.id}: schoolId=${dept.schoolId} doesn't match parent ${school.id}`);
+          }
+
+          const deptNode: any = {
+            id: String(dept.id),
+            name: dept.name,
+            type: "department",
             studentCount: 0,
             children: [],
           };
 
-          for (const yr of yearList) {
-            if (!yr.isActive) continue;
-            const divList = await this.listDivisions(yr.id);
-            const yearNode: any = {
-              id: yr.id,
-              name: yr.label,
-              type: "year",
+          let progList: any[] = [];
+          try { progList = await this.listPrograms(dept.id); }
+          catch (e) { console.warn(`[hierarchy] Failed to load programs for department ${dept.id}:`, e); }
+
+          for (const prog of progList) {
+            if (!prog.isActive) continue;
+
+            if (String(prog.departmentId) !== String(dept.id)) {
+              console.warn(`[hierarchy] Orphaned program ${prog.id}: departmentId=${prog.departmentId} doesn't match parent ${dept.id}`);
+            }
+
+            const progNode: any = {
+              id: String(prog.id),
+              name: prog.name,
+              type: "program",
               studentCount: 0,
-              children: divList.filter(d => d.isActive).map(d => ({
-                id: d.id,
-                name: d.name,
-                type: "division",
-                studentCount: d.studentCount || 0,
-                children: [],
-              })),
+              children: [],
             };
-            yearNode.studentCount = yearNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
-            progNode.children.push(yearNode);
+
+            let yearList: any[] = [];
+            try { yearList = await this.listYears(prog.id); }
+            catch (e) { console.warn(`[hierarchy] Failed to load years for program ${prog.id}:`, e); }
+
+            for (const yr of yearList) {
+              if (!yr.isActive) continue;
+
+              let divList: any[] = [];
+              try { divList = await this.listDivisions(yr.id); }
+              catch (e) { console.warn(`[hierarchy] Failed to load divisions for year ${yr.id}:`, e); }
+
+              const yearNode: any = {
+                id: String(yr.id),
+                name: yr.label,
+                type: "year",
+                studentCount: 0,
+                children: divList.filter(d => d.isActive).map(d => ({
+                  id: String(d.id),
+                  name: d.name,
+                  type: "division",
+                  studentCount: d.studentCount || 0,
+                  children: [],
+                })),
+              };
+              yearNode.studentCount = yearNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
+              progNode.children.push(yearNode);
+            }
+            progNode.studentCount = progNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
+            deptNode.children.push(progNode);
           }
-          progNode.studentCount = progNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
-          deptNode.children.push(progNode);
+          deptNode.studentCount = deptNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
+          schoolNode.children.push(deptNode);
         }
-        deptNode.studentCount = deptNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
-        schoolNode.children.push(deptNode);
+        schoolNode.studentCount = schoolNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
+        tree.children.push(schoolNode);
       }
-      schoolNode.studentCount = schoolNode.children.reduce((s: number, c: any) => s + c.studentCount, 0);
-      tree.children.push(schoolNode);
+      tree.studentCount = tree.children.reduce((s: number, c: any) => s + c.studentCount, 0);
+      return tree;
+    } catch (error) {
+      console.error(`[hierarchy] Critical error building hierarchy tree for institute ${instituteId}:`, error);
+      return { id: instituteId, name: "Error loading hierarchy", type: "institute", studentCount: 0, children: [] };
     }
-    tree.studentCount = tree.children.reduce((s: number, c: any) => s + c.studentCount, 0);
-    return tree;
   }
 
   async getAdminStats(instituteId?: string): Promise<any> {
@@ -726,6 +832,29 @@ export class DatabaseStorage implements IStorage {
     const failedJobs = allJobs.filter(j => j.status === "failed");
     const publishedContent = allContent.filter(c => c.publishStatus === "published");
 
+    // ── Compute 30-day trends ──────────────────────────
+    const now = Date.now();
+    const thirtyDaysAgo = now - 30 * 24 * 60 * 60 * 1000;
+    const sixtyDaysAgo  = now - 60 * 24 * 60 * 60 * 1000;
+
+    const trend = (items: any[]) => {
+      const last30 = items.filter((x: any) =>
+        new Date(x.createdAt).getTime() >= thirtyDaysAgo
+      ).length;
+      const prev30 = items.filter((x: any) => {
+        const t = new Date(x.createdAt).getTime();
+        return t >= sixtyDaysAgo && t < thirtyDaysAgo;
+      }).length;
+      if (prev30 === 0) return last30 > 0 ? "+100%" : "0%";
+      const pct = Math.round(((last30 - prev30) / prev30) * 100);
+      return pct >= 0 ? `+${pct}%` : `${pct}%`;
+    };
+
+    const studentTrend    = trend(allStudents);
+    const teacherTrend    = trend(allTeachers);
+    const contentTrend    = trend(allContent);
+    const disabledTrend   = trend(studentsWithDisabilities);
+
     return {
       totalStudents: allStudents.length,
       studentsWithDisabilities: studentsWithDisabilities.length,
@@ -736,20 +865,87 @@ export class DatabaseStorage implements IStorage {
         return f && f.length > 1;
       }).length / publishedContent.length) * 100) : 0,
       conversionFailureRate: allJobs.length > 0 ? Math.round((failedJobs.length / allJobs.length) * 100 * 10) / 10 : 0,
+      studentTrend,
+      teacherTrend,
+      contentTrend,
+      disabledTrend,
       disabilityBreakdown: Object.entries(disabilityCounts).map(([name, count]) => ({
         name,
         count,
         percentage: studentsWithDisabilities.length > 0 ? Math.round((count / studentsWithDisabilities.length) * 100) : 0,
       })),
       formatUsage: [
-        { format: "Audio", usage: 0 },
-        { format: "Captions", usage: 0 },
-        { format: "Transcript", usage: 0 },
-        { format: "Simplified", usage: 0 },
-        { format: "Braille", usage: 0 },
-        { format: "High Contrast", usage: 0 },
+        {
+          format: "Transcript",
+          usage: allContent.filter((c: any) =>
+            c.transcriptStatus === "COMPLETED" ||
+            c.transcriptStatus === "APPROVED"
+          ).length,
+        },
+        {
+          format: "Simplified",
+          usage: allContent.filter((c: any) =>
+            c.simplifiedStatus === "COMPLETED" ||
+            c.simplifiedStatus === "APPROVED" ||
+            c.simplifiedStatus === "READYFORREVIEW"
+          ).length,
+        },
+        {
+          format: "Audio",
+          usage: allContent.filter((c: any) =>
+            c.audioStatus === "COMPLETED" ||
+            c.audioStatus === "APPROVED"
+          ).length,
+        },
+        {
+          format: "High Contrast",
+          usage: allContent.filter((c: any) =>
+            c.highContrastStatus === "COMPLETED" ||
+            c.highContrastStatus === "APPROVED"
+          ).length,
+        },
+        {
+          format: "Braille",
+          usage: allContent.filter((c: any) =>
+            c.brailleStatus === "COMPLETED" ||
+            c.brailleStatus === "APPROVED"
+          ).length,
+        },
       ],
-      monthlyConversions: [],
+      monthlyConversions: (() => {
+        // Group content by month of creation — last 6 months
+        const now = new Date();
+        const months: { month: string; conversions: number; students: number }[] = [];
+
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          const label = d.toLocaleString("default", {
+            month: "short",
+            year: "2-digit",
+          });
+          const monthStart = d.getTime();
+          const monthEnd = new Date(
+            d.getFullYear(), d.getMonth() + 1, 1
+          ).getTime();
+
+          const conversionsThisMonth = allContent.filter((c: any) => {
+            const t = new Date(c.createdAt).getTime();
+            return t >= monthStart && t < monthEnd;
+          }).length;
+
+          const studentsThisMonth = allStudents.filter((s: any) => {
+            const t = new Date(s.createdAt).getTime();
+            return t >= monthStart && t < monthEnd;
+          }).length;
+
+          months.push({
+            month: label,
+            conversions: conversionsThisMonth,
+            students: studentsThisMonth,
+          });
+        }
+        return months;
+      })(),
     };
   }
 }

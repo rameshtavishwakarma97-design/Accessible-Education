@@ -5,6 +5,8 @@ import { generateToken, hashPassword, comparePassword, requireAuth, requireRole 
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import mime from "mime-types";
+import { KokoroTTS } from "kokoro-js";
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -20,9 +22,64 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 },
 });
 
+let activeConversions = 0;
+const MAX_CONCURRENT_CONVERSIONS = 3;
+
+let kokoroTTS: any = null;
+let kokoroLoading = false;
+let kokoroReady = false;
+
+export async function getKokoroTTS() {
+  if (kokoroReady && kokoroTTS) return kokoroTTS;
+  if (kokoroLoading) {
+    // Wait for existing load
+    while (kokoroLoading) {
+      await new Promise(r => setTimeout(r, 200));
+    }
+    return kokoroTTS;
+  }
+  kokoroLoading = true;
+  try {
+    console.log("[Kokoro] Loading TTS model (first time may take 30s)...");
+    kokoroTTS = await KokoroTTS.from_pretrained(
+      "onnx-community/Kokoro-82M-v1.0-ONNX",
+      { dtype: "q8", device: "cpu" }
+    );
+    kokoroReady = true;
+    console.log("[Kokoro] TTS model ready \u2713");
+    return kokoroTTS;
+  } catch (err) {
+    console.error("[Kokoro] Failed to load TTS model:", err);
+    kokoroLoading = false;
+    throw err;
+  } finally {
+    kokoroLoading = false;
+  }
+}
+
 function sanitizeUser(user: any) {
   const { passwordHash, ...rest } = user;
   return rest;
+}
+
+async function patchAvailableFormats(
+  contentId: string,
+  formatKey: string,
+  filePath: string,
+  status: string
+) {
+  try {
+    const item = await storage.getContentItem(contentId);
+    if (!item) return;
+    const existing = (item.availableFormats as Record<string, any>) || {};
+    const updated = {
+      ...existing,
+      [formatKey]: { path: filePath, status }
+    };
+    await storage.updateContentItem(contentId, { availableFormats: updated });
+  } catch (e) {
+    console.error(`[patchAvailableFormats] Failed for ${contentId}/${formatKey}:`, e);
+  }
 }
 
 export async function registerRoutes(
@@ -33,6 +90,37 @@ export async function registerRoutes(
   app.get("/api/health", (_req: Request, res: Response) => {
     res.json({ status: "ok", services: { db: "connected", storage: "local" } });
   });
+
+  app.get('/api/content/file/uploads/converted/:contentId/:filename',
+    requireAuth,
+    (req: Request, res: Response) => {
+      const { contentId, filename } = req.params as { contentId: string, filename: string };
+
+      // Security: validate contentId is a UUID and filename has no path traversal
+      const uuidRegex = /^[0-9a-f-]{36}$/i;
+      const safeFilename = /^[a-zA-Z0-9._-]+$/;
+
+      if (!uuidRegex.test(contentId) || !safeFilename.test(filename)) {
+        return res.status(400).json({ error: 'Invalid file path' });
+      }
+
+      const filePath = path.join(process.cwd(), 'uploads', 'converted', contentId, filename);
+
+      if (!fs.existsSync(filePath)) {
+        console.error('[FileServe] File not found:', filePath);
+        return res.status(404).json({ error: 'File not found on server' });
+      }
+
+      const mimeType = mime.lookup(filename) || 'application/octet-stream';
+
+      // Security headers
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, max-age=3600');
+
+      return res.sendFile(filePath);
+    }
+  );
 
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
@@ -87,6 +175,12 @@ export async function registerRoutes(
   });
 
   app.post("/api/auth/logout", (_req: Request, res: Response) => {
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
     res.json({ message: "Logged out successfully" });
   });
 
@@ -116,7 +210,7 @@ export async function registerRoutes(
 
   app.get("/api/users/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const user = await storage.getUser(req.params.id);
+      const user = await storage.getUser(req.params.id as string);
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json(sanitizeUser(user));
     } catch (error: any) {
@@ -126,7 +220,7 @@ export async function registerRoutes(
 
   app.patch("/api/users/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const user = await storage.updateUser(req.params.id, req.body);
+      const user = await storage.updateUser(req.params.id as string, req.body);
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json(sanitizeUser(user));
     } catch (error: any) {
@@ -137,7 +231,7 @@ export async function registerRoutes(
   app.put("/api/users/:id/accessibility-profile", requireAuth, async (req: Request, res: Response) => {
     try {
       const { disabilities, preferences, activeModules } = req.body;
-      const user = await storage.updateUser(req.params.id, {
+      const user = await storage.updateUser(req.params.id as string, {
         disabilities,
         preferences,
         activeModules,
@@ -150,7 +244,7 @@ export async function registerRoutes(
         actorId: req.user!.userId,
         actorRole: req.user!.role,
         action: "UPDATE_ACCESSIBILITY_PROFILE",
-        targetId: req.params.id,
+        targetId: req.params.id as string,
         targetType: "user",
         ipAddress: req.ip,
       });
@@ -221,7 +315,8 @@ export async function registerRoutes(
 
   app.post("/api/admin/users/:id/deactivate", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const user = await storage.updateUser(req.params.id, { status: "inactive" });
+      const { id } = req.params as { id: string };
+      const user = await storage.updateUser(id, { status: "inactive" });
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json(sanitizeUser(user));
     } catch (error: any) {
@@ -231,7 +326,8 @@ export async function registerRoutes(
 
   app.post("/api/admin/users/:id/activate", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const user = await storage.updateUser(req.params.id, { status: "active" });
+      const { id } = req.params as { id: string };
+      const user = await storage.updateUser(id, { status: "active" });
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json(sanitizeUser(user));
     } catch (error: any) {
@@ -241,9 +337,10 @@ export async function registerRoutes(
 
   app.post("/api/admin/users/:id/reset-password", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
+      const { id } = req.params as { id: string };
       const newPassword = req.body.password || "TempPass123!";
       const passwordHash = await hashPassword(newPassword);
-      const user = await storage.updateUser(req.params.id, { passwordHash });
+      const user = await storage.updateUser(id, { passwordHash });
       if (!user) return res.status(404).json({ message: "User not found" });
       res.json({ message: "Password reset successful" });
     } catch (error: any) {
@@ -271,7 +368,7 @@ export async function registerRoutes(
 
   app.get("/api/institutes/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const inst = await storage.getInstitute(req.params.id);
+      const inst = await storage.getInstitute(req.params.id as string);
       if (!inst) return res.status(404).json({ message: "Institute not found" });
       res.json(inst);
     } catch (error: any) {
@@ -281,7 +378,8 @@ export async function registerRoutes(
 
   app.patch("/api/institutes/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const inst = await storage.updateInstitute(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const inst = await storage.updateInstitute(id, req.body);
       if (!inst) return res.status(404).json({ message: "Institute not found" });
       res.json(inst);
     } catch (error: any) {
@@ -289,9 +387,142 @@ export async function registerRoutes(
     }
   });
 
+  // ─── ADMIN USER MANAGEMENT ───────────────────────────────────────────────────
+  app.get("/api/admin/users", requireAuth, requireRole("admin"), async (_req: Request, res: Response) => {
+    try {
+      const list = await storage.listUsers();
+      res.json(list.map(sanitizeUser));
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/users", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const { name, email, password, role, program, year, division } = req.body;
+      if (!name || !email || !role) {
+        return res.status(400).json({ message: "Name, email, and role are required" });
+      }
+      const existing = await storage.getUserByEmail(email);
+      if (existing) {
+        return res.status(409).json({ message: "A user with this email already exists" });
+      }
+      const pw = password || (Math.random().toString(36).slice(-10) + "A1!");
+      const passwordHash = await hashPassword(pw);
+      const user = await storage.createUser({
+        name,
+        email: email.toLowerCase(),
+        role,
+        passwordHash,
+        status: "active",
+        instituteId: req.user?.instituteId ?? null,
+        program: program || null,
+        year: year ? parseInt(year) : null,
+        division: division || null,
+      } as any);
+      res.status(201).json(sanitizeUser(user));
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ─── COURSE OFFERINGS ─────────────────────────────────────────────────────────
+  app.get("/api/course-offerings", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { courseId, termId, instituteId } = req.query;
+      const list = await storage.listCourseOfferings({
+        courseId: courseId as string,
+        termId: termId as string,
+        instituteId: instituteId as string,
+      });
+      // Enrich with course data
+      const enriched = await Promise.all(
+        list.map(async (co: any) => {
+          const course = await storage.getCourse(co.courseId);
+          return { ...co, course };
+        })
+      );
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/course-offerings/:id", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params as { id: string };
+      const co = await storage.getCourseOffering(id);
+      if (!co) return res.status(404).json({ message: "Course offering not found" });
+      const course = await storage.getCourse(co.courseId);
+      // Get teachers assigned to this offering
+      const allUsers = await storage.listUsers();
+      const teachers = allUsers.filter((u: any) => u.role === "teacher");
+      res.json({ ...co, course, teachers });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ─── ENROLLMENTS ──────────────────────────────────────────────────────────────
+  app.get("/api/enrollments", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { studentId, courseOfferingId } = req.query;
+      const list = await storage.listEnrollments({
+        studentId: studentId as string,
+        courseOfferingId: courseOfferingId as string,
+      });
+      res.json(list);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/admin/enrollment/bulk", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const { courseOfferingId } = req.body;
+      if (!courseOfferingId) {
+        return res.status(400).json({ message: "courseOfferingId is required" });
+      }
+      const co = await storage.getCourseOffering(courseOfferingId);
+      if (!co) return res.status(404).json({ message: "Course offering not found" });
+
+      // Find students in the same institute, filtering by division if applicable
+      const allUsers = await storage.listUsers();
+      const students = allUsers.filter((u: any) =>
+        u.role === "student" && u.status === "active" && u.instituteId === co.instituteId
+      );
+
+      // Get existing enrollments to avoid duplicates
+      const existing = await storage.listEnrollments({ courseOfferingId });
+      const existingStudentIds = new Set(existing.map((e: any) => e.studentId));
+
+      let enrolledCount = 0;
+      for (const student of students) {
+        if (existingStudentIds.has(student.id)) continue;
+        await storage.createEnrollment({
+          studentId: student.id,
+          courseOfferingId,
+          enrollmentType: "admin_assigned",
+          status: "active",
+          enrolledByAdminId: req.user?.userId,
+        } as any);
+        enrolledCount++;
+      }
+
+      // Update student count on the offering
+      const updatedEnrollments = await storage.listEnrollments({ courseOfferingId });
+      await storage.updateCourseOffering(courseOfferingId, { studentCount: updatedEnrollments.length } as any);
+
+      res.json({ enrolledCount });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/institutes/:id/hierarchy", requireAuth, async (req: Request, res: Response) => {
     try {
-      const tree = await storage.getHierarchyTree(req.params.id);
+      const { id } = req.params as { id: string };
+      const tree = await storage.getHierarchyTree(id);
       if (!tree) return res.status(404).json({ message: "Institute not found" });
       res.json(tree);
     } catch (error: any) {
@@ -321,7 +552,7 @@ export async function registerRoutes(
 
   app.get("/api/schools/:instituteId", requireAuth, async (req: Request, res: Response) => {
     try {
-      res.json(await storage.listSchools(req.params.instituteId));
+      res.json(await storage.listSchools(req.params.instituteId as string));
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -329,7 +560,8 @@ export async function registerRoutes(
 
   app.post("/api/schools/:id/departments", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const school = await storage.getSchool(req.params.id);
+      const { id } = req.params as { id: string };
+      const school = await storage.getSchool(id);
       if (!school) return res.status(404).json({ message: "School not found" });
       const dept = await storage.createDepartment({ ...req.body, schoolId: req.params.id, instituteId: school.instituteId });
       res.status(201).json(dept);
@@ -340,7 +572,8 @@ export async function registerRoutes(
 
   app.post("/api/departments/:id/programs", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const dept = await storage.getDepartment(req.params.id);
+      const { id } = req.params as { id: string };
+      const dept = await storage.getDepartment(id);
       if (!dept) return res.status(404).json({ message: "Department not found" });
       const prog = await storage.createProgram({ ...req.body, departmentId: req.params.id, schoolId: dept.schoolId, instituteId: dept.instituteId });
       res.status(201).json(prog);
@@ -360,7 +593,8 @@ export async function registerRoutes(
 
   app.post("/api/years/:id/divisions", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const yr = await storage.getYear(req.params.id);
+      const { id } = req.params as { id: string };
+      const yr = await storage.getYear(id);
       if (!yr) return res.status(404).json({ message: "Year not found" });
       const div = await storage.createDivision({ ...req.body, yearId: req.params.id, programId: yr.programId });
       res.status(201).json(div);
@@ -378,9 +612,89 @@ export async function registerRoutes(
     }
   });
 
+  // ─── HIERARCHY NODE CRUD (update + retire) ──────────────────────────────────
+  // Generic PATCH/DELETE for each entity type
+  app.patch("/api/hierarchy/institute/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const result = await storage.updateInstitute(req.params.id as string, req.body);
+      if (!result) return res.status(404).json({ message: "Institute not found" });
+      res.json(result);
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+
+  app.patch("/api/hierarchy/school/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const result = await storage.updateSchool(req.params.id as string, req.body);
+      if (!result) return res.status(404).json({ message: "School not found" });
+      res.json(result);
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+  app.delete("/api/hierarchy/school/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteSchool(req.params.id as string);
+      res.json({ message: "School retired" });
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+
+  app.patch("/api/hierarchy/department/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const result = await storage.updateDepartment(req.params.id as string, req.body);
+      if (!result) return res.status(404).json({ message: "Department not found" });
+      res.json(result);
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+  app.delete("/api/hierarchy/department/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDepartment(req.params.id as string);
+      res.json({ message: "Department retired" });
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+
+  app.patch("/api/hierarchy/program/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const result = await storage.updateProgram(req.params.id as string, req.body);
+      if (!result) return res.status(404).json({ message: "Program not found" });
+      res.json(result);
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+  app.delete("/api/hierarchy/program/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteProgram(req.params.id as string);
+      res.json({ message: "Program retired" });
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+
+  app.patch("/api/hierarchy/year/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const result = await storage.updateYear(req.params.id as string, req.body);
+      if (!result) return res.status(404).json({ message: "Year not found" });
+      res.json(result);
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+  app.delete("/api/hierarchy/year/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteYear(req.params.id as string);
+      res.json({ message: "Year retired" });
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+
+  app.patch("/api/hierarchy/division/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      const result = await storage.updateDivision(req.params.id as string, req.body);
+      if (!result) return res.status(404).json({ message: "Division not found" });
+      res.json(result);
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+  app.delete("/api/hierarchy/division/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
+    try {
+      await storage.deleteDivision(req.params.id as string);
+      res.json({ message: "Division retired" });
+    } catch (error: any) { res.status(500).json({ message: error.message }); }
+  });
+
   app.get("/api/terms/:instituteId", requireAuth, async (req: Request, res: Response) => {
     try {
-      res.json(await storage.listTerms(req.params.instituteId));
+      res.json(await storage.listTerms(req.params.instituteId as string));
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -410,7 +724,7 @@ export async function registerRoutes(
 
   app.get("/api/courses/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const course = await storage.getCourse(req.params.id);
+      const course = await storage.getCourse(req.params.id as string);
       if (!course) return res.status(404).json({ message: "Course not found" });
       res.json(course);
     } catch (error: any) {
@@ -420,7 +734,8 @@ export async function registerRoutes(
 
   app.patch("/api/courses/:id", requireAuth, requireRole("admin", "teacher"), async (req: Request, res: Response) => {
     try {
-      const course = await storage.updateCourse(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const course = await storage.updateCourse(id, req.body);
       if (!course) return res.status(404).json({ message: "Course not found" });
       res.json(course);
     } catch (error: any) {
@@ -430,7 +745,8 @@ export async function registerRoutes(
 
   app.delete("/api/courses/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      await storage.deleteCourse(req.params.id);
+      const { id } = req.params as { id: string };
+      await storage.deleteCourse(id);
       res.json({ message: "Course deleted" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -474,7 +790,8 @@ export async function registerRoutes(
 
   app.get("/api/course-offerings/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const co = await storage.getCourseOffering(req.params.id);
+      const { id } = req.params as { id: string };
+      const co = await storage.getCourseOffering(id);
       if (!co) return res.status(404).json({ message: "Course offering not found" });
 
       const course = await storage.getCourse(co.courseId);
@@ -493,7 +810,8 @@ export async function registerRoutes(
 
   app.patch("/api/course-offerings/:id", requireAuth, requireRole("admin", "teacher"), async (req: Request, res: Response) => {
     try {
-      const co = await storage.updateCourseOffering(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const co = await storage.updateCourseOffering(id, req.body);
       if (!co) return res.status(404).json({ message: "Course offering not found" });
       res.json(co);
     } catch (error: any) {
@@ -503,12 +821,13 @@ export async function registerRoutes(
 
   app.post("/api/admin/courses/:offeringId/teachers", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const co = await storage.getCourseOffering(req.params.offeringId);
+      const { offeringId } = req.params as { offeringId: string };
+      const co = await storage.getCourseOffering(offeringId);
       if (!co) return res.status(404).json({ message: "Course offering not found" });
       const { teacherId, sectionNames } = req.body;
       const currentTeachers = (co.teachers as any[]) || [];
       currentTeachers.push({ teacherId, sectionNames: sectionNames || [], assignedAt: new Date().toISOString() });
-      const updated = await storage.updateCourseOffering(req.params.offeringId, { teachers: currentTeachers });
+      const updated = await storage.updateCourseOffering(offeringId, { teachers: currentTeachers });
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -517,10 +836,11 @@ export async function registerRoutes(
 
   app.delete("/api/admin/courses/:offeringId/teachers/:teacherId", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      const co = await storage.getCourseOffering(req.params.offeringId);
+      const { offeringId, teacherId } = req.params as { offeringId: string, teacherId: string };
+      const co = await storage.getCourseOffering(offeringId);
       if (!co) return res.status(404).json({ message: "Course offering not found" });
-      const currentTeachers = ((co.teachers as any[]) || []).filter((t: any) => t.teacherId !== req.params.teacherId);
-      const updated = await storage.updateCourseOffering(req.params.offeringId, { teachers: currentTeachers });
+      const currentTeachers = ((co.teachers as any[]) || []).filter((t: any) => t.teacherId !== teacherId);
+      const updated = await storage.updateCourseOffering(offeringId, { teachers: currentTeachers });
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -595,12 +915,13 @@ export async function registerRoutes(
 
   app.delete("/api/me/enroll/:enrollmentId", requireAuth, async (req: Request, res: Response) => {
     try {
-      const enrollment = await storage.getEnrollment(req.params.enrollmentId);
+      const { enrollmentId } = req.params as { enrollmentId: string };
+      const enrollment = await storage.getEnrollment(enrollmentId);
       if (!enrollment) return res.status(404).json({ message: "Enrollment not found" });
       if (enrollment.studentId !== req.user!.userId) return res.status(403).json({ message: "Not your enrollment" });
       if (enrollment.enrollmentType !== "student_selected") return res.status(400).json({ message: "Cannot unenroll from admin-assigned courses" });
 
-      await storage.updateEnrollment(req.params.enrollmentId, { status: "withdrawn" });
+      await storage.updateEnrollment(enrollmentId, { status: "withdrawn" });
       res.json({ message: "Unenrolled successfully" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -609,13 +930,14 @@ export async function registerRoutes(
 
   app.delete("/api/admin/enrollment/:id", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      await storage.deleteEnrollment(req.params.id);
+      const { id } = req.params as { id: string };
+      await storage.deleteEnrollment(id);
 
       await storage.createAuditLog({
         actorId: req.user!.userId,
         actorRole: req.user!.role,
         action: "DELETE_ENROLLMENT",
-        targetId: req.params.id,
+        targetId: id,
         targetType: "enrollment",
         ipAddress: req.ip,
         metadata: { reason: req.body.reason },
@@ -658,6 +980,10 @@ export async function registerRoutes(
     try {
       const { title, courseOfferingId, description, contentType, type, tags } = req.body;
 
+      if (!courseOfferingId) {
+        return res.status(400).json({ message: "courseOfferingId is required to upload content" });
+      }
+
       const contentItem = await storage.createContentItem({
         title,
         courseOfferingId,
@@ -676,6 +1002,202 @@ export async function registerRoutes(
         conversionProgress: { tier1: "in_progress", tier2: "in_progress" },
       });
 
+      // ─── TRIGGER TIER 1 CONVERSIONS (PostgreSQL per-column version) ──────────────
+      // Run conversions asynchronously — do not await, so the upload response is instant
+      (async () => {
+        if (activeConversions >= MAX_CONCURRENT_CONVERSIONS) {
+          console.warn(
+            `[Conversion] ⚠️ Max concurrent conversions reached (${MAX_CONCURRENT_CONVERSIONS}). Queuing ${contentItem.id}.`
+          );
+          // Wait until a slot opens — poll every 3 seconds
+          await new Promise<void>((resolve) => {
+            const interval = setInterval(() => {
+              if (activeConversions < MAX_CONCURRENT_CONVERSIONS) {
+                clearInterval(interval);
+                resolve();
+              }
+            }, 3000);
+          });
+        }
+        activeConversions++;
+        console.log(
+          `[Conversion] 🔄 Active conversions: ${activeConversions}/${MAX_CONCURRENT_CONVERSIONS}`
+        );
+        const {
+          extractText,
+          generateSimplifiedText,
+          generateTranscript,
+          generateHighContrastPdf,
+          generateAudioFile,
+          generateBraille,
+        } = await import('./services/conversionService');
+        const {
+          isAzureConfigured,
+          uploadBuffer: azureUploadBuffer,
+        } = await import('./services/blobStorage');
+
+        const contentId = contentItem.id;
+        const file = req.file;
+        if (!file) return;
+
+        const useAzure = isAzureConfigured();
+
+        const isPdfOrDoc =
+          file.mimetype === 'application/pdf' ||
+          file.mimetype.includes('wordprocessingml') ||
+          file.originalname.endsWith('.txt');
+
+        // Read the uploaded file from disk into a buffer
+        const fileBuffer = fs.readFileSync(file.path);
+
+        // Ensure local fallback directory exists
+        const convertedDir = path.join(process.cwd(), 'uploads', 'converted', contentId);
+        console.log(`[Conversion] CWD: ${process.cwd()}`);
+        console.log(`[Conversion] Target Dir: ${convertedDir}`);
+        if (!fs.existsSync(convertedDir)) {
+          console.log(`[Conversion] Creating dir: ${convertedDir}`);
+          fs.mkdirSync(convertedDir, { recursive: true });
+        }
+
+        // Helper: save a buffer either to Azure Blob or local disk
+        async function saveFile(filename: string, buffer: Buffer, mimeType: string): Promise<string> {
+          // ALWAYS save locally first
+          const localPath = path.join(convertedDir, filename);
+          console.log(`[Conversion] Writing file: ${localPath}`);
+          fs.writeFileSync(localPath, buffer);
+
+          if (useAzure) {
+            const blobPath = `converted/${contentId}/${filename}`;
+            await azureUploadBuffer(blobPath, buffer, mimeType);
+            return blobPath;
+          } else {
+            // Return a RELATIVE path from the project root — not absolute
+            return `uploads/converted/${contentId}/${filename}`;
+          }
+        }
+
+        // Helper: update content item columns
+        const updateItem = async (fields: Record<string, any>) => {
+          await storage.updateContentItem(contentId, fields);
+        };
+
+        try {
+          // ── Extract raw text ────────────────────────────────────────
+          let rawText = '';
+          if (isPdfOrDoc) {
+            rawText = await extractText(fileBuffer, file.mimetype, file.originalname);
+            console.log(`[Conversion] Extracted ${rawText.length} chars from ${file.originalname}`);
+
+            if (rawText.trim().length < 50) {
+              console.warn(`[Conversion] ⚠️ Extracted text too short (${rawText.length} chars). File may be a scanned image or empty. Skipping text-based conversions.`);
+              await updateItem({
+                transcriptStatus: 'FAILED',
+                simplifiedStatus: 'FAILED',
+                audioStatus: 'FAILED',
+                conversionError: 'Text extraction returned empty content. File may be a scanned image PDF.'
+              });
+              rawText = ''; // Clear text to prevent downstream failures
+            }
+          }
+
+          // ── TRANSCRIPT ─────────────────────────────────────────────
+          if (isPdfOrDoc && rawText) {
+            try {
+              const transcriptText = generateTranscript(rawText, file.originalname);
+              const transcriptBuffer = Buffer.from(transcriptText, 'utf-8');
+              const transcriptPath = await saveFile('transcript.txt', transcriptBuffer, 'text/plain');
+              await updateItem({ transcriptPath, transcriptStatus: 'COMPLETED' });
+              await patchAvailableFormats(contentId, 'transcript', transcriptPath, 'COMPLETED');
+              console.log(`[Conversion] ✅ Transcript done for ${contentId}`);
+            } catch (e) {
+              console.error('[Conversion] ❌ Transcript failed:', e);
+              await updateItem({ transcriptStatus: 'FAILED', conversionError: String(e) });
+            }
+          }
+
+          // ── SIMPLIFIED TEXT ────────────────────────────────────────
+          if (isPdfOrDoc && rawText) {
+            try {
+              const simplifiedText = await generateSimplifiedText(rawText);
+              const simplifiedBuffer = Buffer.from(simplifiedText, 'utf-8');
+              const simplifiedPath = await saveFile('simplified.txt', simplifiedBuffer, 'text/plain');
+              await updateItem({ simplifiedPath, simplifiedStatus: 'READYFORREVIEW' });
+              await patchAvailableFormats(contentId, 'simplified', simplifiedPath, 'READYFORREVIEW');
+              console.log(`[Conversion] ✅ Simplified done for ${contentId}`);
+            } catch (e) {
+              console.error('[Conversion] ❌ Simplified failed:', e);
+              await updateItem({ simplifiedStatus: 'FAILED' });
+            }
+          }
+
+          // ── BRAILLE ────────────────────────────────────────────────
+          if (isPdfOrDoc && rawText) {
+            try {
+              const brailleText = generateBraille(rawText);
+              const brailleBuffer = Buffer.from(brailleText, 'utf-8');
+              const braillePath = await saveFile('braille.brf', brailleBuffer, 'text/plain');
+              await updateItem({ braillePath, brailleStatus: 'COMPLETED' });
+              await patchAvailableFormats(contentId, 'braille', braillePath, 'COMPLETED');
+              console.log(`[Conversion] ✅ Braille done for ${contentId}`);
+            } catch (e) {
+              console.error('[Conversion] ❌ Braille failed:', e);
+              await updateItem({ brailleStatus: 'FAILED' });
+            }
+          }
+
+          // ── HIGH CONTRAST PDF ──────────────────────────────────────
+          if (file.mimetype === 'application/pdf') {
+            try {
+              const hcBuffer = await generateHighContrastPdf(fileBuffer);
+              if (hcBuffer) {
+                const highContrastPath = await saveFile('high-contrast.pdf', hcBuffer, 'application/pdf');
+                await updateItem({ highContrastPath, highContrastStatus: 'COMPLETED' });
+                await patchAvailableFormats(contentId, 'highContrast', highContrastPath, 'COMPLETED');
+                console.log(`[Conversion] ✅ High contrast PDF done for ${contentId}`);
+              } else {
+                await updateItem({ highContrastStatus: 'FAILED' });
+                console.warn(`[Conversion] ⚠️ High contrast returned null for ${contentId}`);
+              }
+            } catch (e) {
+              console.error('[Conversion] ❌ High contrast failed:', e);
+              await updateItem({ highContrastStatus: 'FAILED' });
+            }
+          }
+
+          // ── AUDIO (TTS script) ─────────────────────────────────────
+          if (isPdfOrDoc && rawText) {
+            try {
+              const { buffer: audioBuffer, mimeType: audioMime, extension } =
+                await generateAudioFile(rawText, file.originalname);
+              const audioPath = await saveFile(`audio.${extension}`, audioBuffer, audioMime);
+              await updateItem({ audioPath, audioStatus: 'COMPLETED' });
+              await patchAvailableFormats(contentId, 'audio', audioPath, 'COMPLETED');
+              console.log(`[Conversion] ✅ Audio script done for ${contentId}`);
+            } catch (e) {
+              console.error('[Conversion] ❌ Audio failed:', e);
+              await updateItem({ audioStatus: 'FAILED' });
+            }
+          }
+
+          // ── MARK PUBLISHED ─────────────────────────────────────────
+          await storage.updateContentItem(contentId, { publishStatus: 'review_required' });
+          console.log(`[Conversion] 🎉 Content ${contentId} fully converted & published (${useAzure ? 'Azure' : 'local'})`);
+
+        } catch (outerErr) {
+          console.error('[Conversion] 💥 Outer conversion block crashed:', outerErr);
+          await storage.updateContentItem(contentId, {
+            publishStatus: 'failed',
+            conversionError: String(outerErr),
+          });
+        } finally {
+          activeConversions--;
+          console.log(
+            `[Conversion] ✅ Slot released. Active: ${activeConversions}/${MAX_CONCURRENT_CONVERSIONS}`
+          );
+        }
+      })();
+      // ─── END CONVERSION TRIGGER ───────────────────────────────────────────────────
+
       res.status(201).json(contentItem);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -690,7 +1212,29 @@ export async function registerRoutes(
         publishStatus: publishStatus as string,
         uploadedBy: uploadedBy as string,
       });
-      res.json(list);
+      const enriched = list.map((item) => {
+          const formats: string[] = [];
+          if (item.transcriptStatus === 'COMPLETED') formats.push('transcript');
+          if (item.simplifiedStatus === 'COMPLETED' || item.simplifiedStatus === 'READYFORREVIEW') formats.push('simplified');
+          if (item.audioStatus === 'COMPLETED') formats.push('audio');
+          if (item.highContrastStatus === 'COMPLETED') formats.push('high_contrast');
+          if (item.brailleStatus === 'COMPLETED') formats.push('braille');
+
+          const t1Done = item.transcriptStatus === 'COMPLETED' && item.audioStatus === 'COMPLETED';
+          const t1Active = item.transcriptStatus === 'PENDING' || item.audioStatus === 'PENDING' || 
+                           item.publishStatus === 'converting';
+          const t2Done = (item.simplifiedStatus === 'COMPLETED' || item.simplifiedStatus === 'READYFORREVIEW') &&
+                         item.highContrastStatus === 'COMPLETED';
+          const t2Active = item.simplifiedStatus === 'PENDING' || item.highContrastStatus === 'PENDING';
+
+          const conversionProgress = {
+            tier1: t1Done ? 'completed' : t1Active ? 'in_progress' : 'pending',
+            tier2: t2Done ? 'completed' : t2Active ? 'in_progress' : 'pending',
+          };
+
+          return { ...item, formats, conversionProgress };
+        });
+        res.json(enriched);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
@@ -698,7 +1242,8 @@ export async function registerRoutes(
 
   app.get("/api/content/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const item = await storage.getContentItem(req.params.id);
+      const { id } = req.params as { id: string };
+      const item = await storage.getContentItem(id);
       if (!item) return res.status(404).json({ message: "Content item not found" });
       res.json(item);
     } catch (error: any) {
@@ -706,9 +1251,64 @@ export async function registerRoutes(
     }
   });
 
+  // ─── SERVE CONVERTED FORMAT CONTENT ──────────────────────────────────────────
+  app.get("/api/content/:id/format/:format", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const item = await storage.getContentItem(req.params.id as string);
+      if (!item) return res.status(404).json({ message: "Content item not found" });
+
+      const formatKey = req.params.format as string;
+      const formats = (item.availableFormats as Record<string, any>) || {};
+      const formatData = formats[formatKey];
+
+      if (!formatData || !formatData.path) {
+        return res.status(404).json({ message: `Format '${formatKey}' not available` });
+      }
+
+      if (formatData.status !== 'COMPLETED' && formatData.status !== 'APPROVED' && formatData.status !== 'READYFORREVIEW') {
+        return res.status(404).json({ message: `Format '${formatKey}' is not ready (status: ${formatData.status})` });
+      }
+
+      const filePath: string = formatData.path;
+
+      // Determine content type from the file extension
+      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      const mimeMap: Record<string, string> = {
+        'txt': 'text/plain; charset=utf-8',
+        'pdf': 'application/pdf',
+        'html': 'text/html; charset=utf-8',
+        'mp3': 'audio/mpeg',
+        'wav': 'audio/wav',
+      };
+      const contentType = mimeMap[ext] || 'application/octet-stream';
+
+      // Check if this is an Azure Blob path (no drive letter or absolute path prefix)
+      const isAzurePath = !path.isAbsolute(filePath) && !filePath.startsWith('.');
+
+      if (isAzurePath) {
+        // Fetch from Azure Blob Storage
+        const { downloadBuffer } = await import('./services/blobStorage');
+        const buffer = await downloadBuffer(filePath);
+        if (!buffer) return res.status(404).json({ message: "File not found in blob storage" });
+        res.setHeader('Content-Type', contentType);
+        res.send(buffer);
+      } else {
+        // Read from local disk
+        if (!fs.existsSync(filePath)) {
+          return res.status(404).json({ message: "File not found on disk" });
+        }
+        res.setHeader('Content-Type', contentType);
+        res.send(fs.readFileSync(filePath));
+      }
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.patch("/api/content/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const item = await storage.updateContentItem(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const item = await storage.updateContentItem(id, req.body);
       if (!item) return res.status(404).json({ message: "Content item not found" });
       res.json(item);
     } catch (error: any) {
@@ -718,7 +1318,8 @@ export async function registerRoutes(
 
   app.patch("/api/content/:id/publish", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const item = await storage.updateContentItem(req.params.id, { publishStatus: "published" });
+      const { id } = req.params as { id: string };
+      const item = await storage.updateContentItem(id, { publishStatus: "published" });
       if (!item) return res.status(404).json({ message: "Content item not found" });
       res.json(item);
     } catch (error: any) {
@@ -728,14 +1329,8 @@ export async function registerRoutes(
 
   app.post("/api/content/:id/soft-delete", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const now = new Date();
-      const deleteDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const item = await storage.updateContentItem(req.params.id, {
-        publishStatus: "soft_deleted",
-        deletedAt: now,
-        deletedByTeacherId: req.user!.userId,
-        permanentDeleteScheduledAt: deleteDate,
-      });
+      const { id } = req.params as { id: string };
+      const item = await storage.softDeleteContentItem(id, req.user!.userId);
       if (!item) return res.status(404).json({ message: "Content item not found" });
       res.json(item);
     } catch (error: any) {
@@ -743,14 +1338,22 @@ export async function registerRoutes(
     }
   });
 
+  // ── IMPACT CHECK ──────────────────────────────────────────
+  app.get("/api/content/:id/impact", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params as { id: string };
+      const impact = await storage.getContentImpact(id);
+      res.json(impact);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ── RESTORE FROM TRASH ────────────────────────────────────
   app.post("/api/content/:id/restore", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const item = await storage.updateContentItem(req.params.id, {
-        publishStatus: "draft",
-        deletedAt: null,
-        deletedByTeacherId: null,
-        permanentDeleteScheduledAt: null,
-      });
+      const { id } = req.params as { id: string };
+      const item = await storage.restoreContentItem(id);
       if (!item) return res.status(404).json({ message: "Content item not found" });
       res.json(item);
     } catch (error: any) {
@@ -758,28 +1361,129 @@ export async function registerRoutes(
     }
   });
 
+  // ── PERMANENT DELETE (admin only) ─────────────────────────
   app.delete("/api/content/:id/permanent", requireAuth, requireRole("admin"), async (req: Request, res: Response) => {
     try {
-      await storage.deleteContentItem(req.params.id);
-
-      await storage.createAuditLog({
-        actorId: req.user!.userId,
-        actorRole: req.user!.role,
-        action: "PERMANENT_DELETE_CONTENT",
-        targetId: req.params.id,
-        targetType: "contentItem",
-        ipAddress: req.ip,
-      });
-
+      const { id } = req.params as { id: string };
+      await storage.permanentDeleteContentItem(id);
       res.json({ message: "Content permanently deleted" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
+  // ── KOKORO TTS GENERATION ───────────────────────────────────
+  app.post("/api/tts/generate", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { text, voice = "af_bella", contentId } = req.body;
+      if (!text) return res.status(400).json({ message: "text is required" });
+
+      const cacheDir = path.join(process.cwd(), "uploads", "tts-cache");
+      if (!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir, { recursive: true });
+
+      // Cache key based on full text hash
+      const crypto = await import("crypto");
+      const textHash = crypto
+        .createHash("md5")
+        .update(`${voice}:${text}`)
+        .digest("hex");
+      const cachePath = path.join(cacheDir, `${textHash}.wav`);
+
+      if (fs.existsSync(cachePath)) {
+        res.setHeader("Content-Type", "audio/wav");
+        res.setHeader("Cache-Control", "public, max-age=86400");
+        return fs.createReadStream(cachePath).pipe(res);
+      }
+
+      const tts = await getKokoroTTS();
+
+      // ── CHUNK LONG TEXT ──────────────────────────────────────
+      // Split on sentence boundaries, group into ~400 char chunks
+      const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+      const chunks: string[] = [];
+      let current = "";
+      for (const sentence of sentences) {
+        if ((current + sentence).length > 400 && current.length > 0) {
+          chunks.push(current.trim());
+          current = sentence;
+        } else {
+          current += sentence;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim());
+      // ── END CHUNKING ─────────────────────────────────────────
+
+      if (chunks.length === 1) {
+        // Single chunk — save directly
+        const audio = await tts.generate(chunks[0], { voice });
+        await audio.save(cachePath);
+      } else {
+        // Multiple chunks — generate each, concatenate raw PCM, write WAV
+        const audioBuffers: Buffer[] = [];
+        let sampleRate = 24000;
+        let numChannels = 1;
+
+        for (const chunk of chunks) {
+          const chunkPath = path.join(
+            cacheDir,
+            `${textHash}_chunk_${audioBuffers.length}.wav`
+          );
+          const audio = await tts.generate(chunk, { voice });
+          await audio.save(chunkPath);
+
+          // Read WAV — skip 44-byte header for all but first
+          const wavBuffer = fs.readFileSync(chunkPath);
+          audioBuffers.push(
+            audioBuffers.length === 0
+              ? wavBuffer                   // keep header from first chunk
+              : wavBuffer.slice(44)         // strip header from rest
+          );
+          fs.unlinkSync(chunkPath);         // cleanup temp chunk file
+        }
+
+        // Fix the data size in the WAV header of the combined buffer
+        const combined = Buffer.concat(audioBuffers);
+        const dataSize = combined.length - 44;
+        combined.writeUInt32LE(dataSize + 36, 4);   // RIFF chunk size
+        combined.writeUInt32LE(dataSize, 40);        // data chunk size
+        fs.writeFileSync(cachePath, combined);
+      }
+
+      res.setHeader("Content-Type", "audio/wav");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      fs.createReadStream(cachePath).pipe(res);
+
+    } catch (error: any) {
+      console.error("[Kokoro] Generation error:", error);
+      res.status(500).json({
+        message: "TTS generation failed.",
+        error: error.message,
+      });
+    }
+  });
+
+  // ── KOKORO VOICES LIST ────────────────────────────────────
+  app.get("/api/tts/voices", requireAuth, async (_req: Request, res: Response) => {
+    const voices = [
+      { id: "af_heart",    name: "Heart",    gender: "F", accent: "American" },
+      { id: "af_bella",    name: "Bella",    gender: "F", accent: "American" },
+      { id: "af_sarah",    name: "Sarah",    gender: "F", accent: "American" },
+      { id: "af_nicole",   name: "Nicole",   gender: "F", accent: "American" },
+      { id: "am_michael",  name: "Michael",  gender: "M", accent: "American" },
+      { id: "am_fenrir",   name: "Fenrir",   gender: "M", accent: "American" },
+      { id: "am_puck",     name: "Puck",     gender: "M", accent: "American" },
+      { id: "bf_emma",     name: "Emma",     gender: "F", accent: "British"  },
+      { id: "bf_isabella", name: "Isabella", gender: "F", accent: "British"  },
+      { id: "bm_george",   name: "George",   gender: "M", accent: "British"  },
+      { id: "bm_fable",    name: "Fable",    gender: "M", accent: "British"  },
+    ];
+    res.json(voices);
+  });
+
   app.get("/api/content/:id/delete-impact", requireAuth, async (req: Request, res: Response) => {
     try {
-      const item = await storage.getContentItem(req.params.id);
+      const { id } = req.params as { id: string };
+      const item = await storage.getContentItem(id);
       if (!item) return res.status(404).json({ message: "Content item not found" });
 
       res.json({
@@ -790,6 +1494,80 @@ export async function registerRoutes(
       });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ─── SIGNED URL FOR FORMAT CONTENT ───────────────────────────────────────────
+  // GET /api/content/:contentId/format-url
+  app.get("/api/content/:contentId/format-url", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { contentId } = req.params as { contentId: string };
+      const { format, redirect: shouldRedirect } = req.query as { format: string; redirect?: string };
+
+      const item = await storage.getContentItem(contentId);
+      if (!item) return res.status(404).json({ error: 'Content item not found' });
+
+      const pathMap: Record<string, string | null> = {
+        transcript: (item as any).transcriptPath ?? null,
+        simplified: (item as any).simplifiedPath ?? null,
+        audio: (item as any).audioPath ?? null,
+        highContrast: (item as any).highContrastPath ?? null,
+        high_contrast: (item as any).highContrastPath ?? null,
+        braille: (item as any).braillePath ?? null,
+      };
+
+      // Fallback: legacy JSONB lookup
+      const formats = (item.availableFormats as Record<string, any>) || {};
+      const fallbackPath = formats[format]?.path ?? null;
+
+      const filePath = pathMap[format] ?? fallbackPath ?? null;
+
+      if (!filePath) {
+        return res.status(404).json({
+          error: `Format '${format}' is not yet available for this content item.`
+        });
+      }
+
+      // Check if this is an Azure blob path (starts with "converted/") 
+      // or a local path (starts with "uploads/")
+      const isAzurePath = filePath.startsWith('converted/');
+      const isLocalPath = filePath.startsWith('uploads/') || filePath.includes('\\');
+
+      // PREFER LOCAL: check if the file actually exists on disk (fallback/dev mode)
+      const relativeLocalPath = filePath.startsWith('converted/') ? `uploads/${filePath}` : filePath;
+      const absoluteLocalPath = path.join(process.cwd(), relativeLocalPath);
+
+      if (fs.existsSync(absoluteLocalPath)) {
+        const url = `/api/content/file/${relativeLocalPath.replace(/\\/g, '/')}`;
+        if (shouldRedirect === 'true') return res.redirect(url);
+        return res.json({ url, source: 'local' });
+      }
+
+      if (isAzurePath) {
+        // Azure: generate public URL (container has public blob access)
+        const { getBlobUrl } = await import('./services/blobStorage');
+        const url = getBlobUrl(filePath);
+        if (shouldRedirect === 'true') return res.redirect(url);
+        return res.json({ url, source: 'azure' });
+      }
+
+      if (isLocalPath) {
+        // Local: serve the file directly from disk via a signed server route
+        // Return a server-relative URL that our /api/content/file/* endpoint will serve
+        const normalizedPath = filePath.replace(/\\\\/g, '/').replace(/^.*uploads\//, 'uploads/');
+        const url = `/api/content/file/${normalizedPath}`;
+        if (shouldRedirect === 'true') return res.redirect(url);
+        return res.json({
+          url,
+          source: 'local'
+        });
+      }
+
+      return res.status(400).json({ error: 'Unrecognized file path format' });
+
+    } catch (err: any) {
+      console.error('[FormatURL] Error:', err.message);
+      return res.status(500).json({ error: 'Failed to resolve format URL', detail: err.message });
     }
   });
 
@@ -840,7 +1618,8 @@ export async function registerRoutes(
 
   app.post("/api/conversions/:jobId/approve", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const job = await storage.updateConversionJob(req.params.jobId, {
+      const { jobId } = req.params as { jobId: string };
+      const job = await storage.updateConversionJob(jobId, {
         status: "approved",
         reviewedByTeacherId: req.user!.userId,
         reviewedAt: new Date(),
@@ -854,7 +1633,8 @@ export async function registerRoutes(
 
   app.post("/api/conversions/:jobId/reject", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const job = await storage.updateConversionJob(req.params.jobId, {
+      const { jobId } = req.params as { jobId: string };
+      const job = await storage.updateConversionJob(jobId, {
         status: "rejected",
         reviewedByTeacherId: req.user!.userId,
         reviewedAt: new Date(),
@@ -868,9 +1648,10 @@ export async function registerRoutes(
 
   app.post("/api/conversions/:jobId/retry", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const job = await storage.getConversionJob(req.params.jobId);
+      const { jobId } = req.params as { jobId: string };
+      const job = await storage.getConversionJob(jobId);
       if (!job) return res.status(404).json({ message: "Conversion job not found" });
-      const updated = await storage.updateConversionJob(req.params.jobId, {
+      const updated = await storage.updateConversionJob(jobId, {
         status: "pending",
         retryCount: (job.retryCount || 0) + 1,
         errorMessage: null,
@@ -931,7 +1712,8 @@ export async function registerRoutes(
 
   app.get("/api/assessments/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const assessment = await storage.getAssessment(req.params.id);
+      const { id } = req.params as { id: string };
+      const assessment = await storage.getAssessment(id);
       if (!assessment) return res.status(404).json({ message: "Assessment not found" });
 
       if (req.user!.role === "student") {
@@ -952,7 +1734,8 @@ export async function registerRoutes(
 
   app.patch("/api/assessments/:id", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const assessment = await storage.updateAssessment(req.params.id, req.body);
+      const { id } = req.params as { id: string };
+      const assessment = await storage.updateAssessment(id, req.body);
       if (!assessment) return res.status(404).json({ message: "Assessment not found" });
       res.json(assessment);
     } catch (error: any) {
@@ -962,19 +1745,70 @@ export async function registerRoutes(
 
   app.delete("/api/assessments/:id", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      await storage.deleteAssessment(req.params.id);
+      const { id } = req.params as { id: string };
+      await storage.deleteAssessment(id);
       res.json({ message: "Assessment deleted" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }
   });
 
+  // ─── CONTENT PROGRESS TRACKING ───────────────────────────────────────────────
+  app.post("/api/content/:contentId/progress", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { progressPercent } = req.body;
+      const { contentId } = req.params as { contentId: string };
+      const studentId = req.user!.userId;
+
+      const { contentProgress } = await import("@shared/schema");
+      const { db } = await import("./db");
+
+      await db.insert(contentProgress)
+        .values({ studentId, contentId, progressPercent, updatedAt: new Date() })
+        .onConflictDoUpdate({
+          target: [contentProgress.studentId, contentProgress.contentId],
+          set: { progressPercent, updatedAt: new Date() }
+        });
+
+      return res.json({ ok: true });
+    } catch (error: any) {
+      console.error('[Progress] Error saving progress:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/content/:contentId/progress", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const { contentId } = req.params as { contentId: string };
+      const studentId = req.user!.userId;
+
+      const { contentProgress } = await import("@shared/schema");
+      const { db } = await import("./db");
+      const { eq, and } = await import("drizzle-orm");
+
+      const [progress] = await db.select()
+        .from(contentProgress)
+        .where(
+          and(
+            eq(contentProgress.studentId, studentId),
+            eq(contentProgress.contentId, contentId)
+          )
+        );
+
+      return res.json({ progressPercent: progress?.progressPercent || 0 });
+    } catch (error: any) {
+      console.error('[Progress] Error fetching progress:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/assessments/:id/start", requireAuth, async (req: Request, res: Response) => {
     try {
-      const assessment = await storage.getAssessment(req.params.id);
+      const { id } = req.params as { id: string };
+      const assessment = await storage.getAssessment(id);
       if (!assessment) return res.status(404).json({ message: "Assessment not found" });
 
-      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, req.params.id);
+      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, id as string);
       if (existing && existing.status !== "paused") {
         return res.json(existing);
       }
@@ -991,7 +1825,7 @@ export async function registerRoutes(
       }
 
       const submission = await storage.createSubmission({
-        assessmentId: req.params.id,
+        assessmentId: id,
         studentId: req.user!.userId,
         courseOfferingId: assessment.courseOfferingId,
         status: "in_progress",
@@ -1008,7 +1842,8 @@ export async function registerRoutes(
 
   app.patch("/api/assessments/:id/answer", requireAuth, async (req: Request, res: Response) => {
     try {
-      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, req.params.id);
+      const { id } = req.params as { id: string };
+      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, id);
       if (!existing) return res.status(404).json({ message: "No active submission found" });
 
       const { questionId, responseType, textAnswer, filePath } = req.body;
@@ -1028,7 +1863,8 @@ export async function registerRoutes(
 
   app.post("/api/assessments/:id/save-exit", requireAuth, async (req: Request, res: Response) => {
     try {
-      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, req.params.id);
+      const { id } = req.params as { id: string };
+      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, id);
       if (!existing) return res.status(404).json({ message: "No active submission found" });
 
       const updated = await storage.updateSubmission(existing.id, {
@@ -1045,7 +1881,8 @@ export async function registerRoutes(
 
   app.post("/api/assessments/:id/resume", requireAuth, async (req: Request, res: Response) => {
     try {
-      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, req.params.id);
+      const { id } = req.params as { id: string };
+      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, id);
       if (!existing) return res.status(404).json({ message: "No submission found" });
       if (existing.status !== "paused") return res.status(400).json({ message: "Submission is not paused" });
 
@@ -1062,10 +1899,11 @@ export async function registerRoutes(
 
   app.post("/api/assessments/:id/submit", requireAuth, async (req: Request, res: Response) => {
     try {
-      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, req.params.id);
+      const { id } = req.params as { id: string };
+      const existing = await storage.getSubmissionByStudentAndAssessment(req.user!.userId, id);
       if (!existing) return res.status(404).json({ message: "No active submission found" });
 
-      const assessment = await storage.getAssessment(req.params.id);
+      const assessment = await storage.getAssessment(id);
       if (!assessment) return res.status(404).json({ message: "Assessment not found" });
 
       let totalScore = 0;
@@ -1119,9 +1957,27 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/messages/unread-count", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = req.user!.userId;
+      const allThreads = await storage.listThreads({});
+      const unread = allThreads.filter(
+        (t: any) =>
+          Array.isArray(t.participants) &&
+          t.participants.some((p: any) => p.id === userId) &&
+          (t.unreadCount ?? 0) > 0
+      );
+      const count = unread.reduce((sum: number, t: any) => sum + (t.unreadCount ?? 0), 0);
+      res.json({ count });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.get("/api/threads/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const thread = await storage.getThread(req.params.id);
+      const { id } = req.params as { id: string };
+      const thread = await storage.getThread(id);
       if (!thread) return res.status(404).json({ message: "Thread not found" });
       res.json(thread);
     } catch (error: any) {
@@ -1131,7 +1987,8 @@ export async function registerRoutes(
 
   app.get("/api/threads/:id/messages", requireAuth, async (req: Request, res: Response) => {
     try {
-      const list = await storage.listMessages(req.params.id);
+      const { id } = req.params as { id: string };
+      const list = await storage.listMessages(id);
       res.json(list);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1142,7 +1999,7 @@ export async function registerRoutes(
     try {
       const user = await storage.getUser(req.user!.userId);
       const message = await storage.createMessage({
-        threadId: req.params.id,
+        threadId: req.params.id as string,
         senderId: req.user!.userId,
         senderName: user?.name || "Unknown",
         senderRole: req.user!.role,
@@ -1150,7 +2007,8 @@ export async function registerRoutes(
         type: req.body.type || "text",
       });
 
-      await storage.updateThread(req.params.id, {
+      const { id } = req.params as { id: string };
+      await storage.updateThread(id, {
         lastMessage: req.body.content,
         lastMessageTime: new Date(),
       });
@@ -1215,7 +2073,8 @@ export async function registerRoutes(
 
   app.get("/api/announcements/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const announcement = await storage.getAnnouncement(req.params.id);
+      const { id } = req.params as { id: string };
+      const announcement = await storage.getAnnouncement(id);
       if (!announcement) return res.status(404).json({ message: "Announcement not found" });
       res.json(announcement);
     } catch (error: any) {
@@ -1225,7 +2084,7 @@ export async function registerRoutes(
 
   app.patch("/api/announcements/:id", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      const announcement = await storage.updateAnnouncement(req.params.id, req.body);
+      const announcement = await storage.updateAnnouncement(req.params.id as string, req.body);
       if (!announcement) return res.status(404).json({ message: "Announcement not found" });
       res.json(announcement);
     } catch (error: any) {
@@ -1235,7 +2094,7 @@ export async function registerRoutes(
 
   app.delete("/api/announcements/:id", requireAuth, requireRole("teacher", "admin"), async (req: Request, res: Response) => {
     try {
-      await storage.deleteAnnouncement(req.params.id);
+      await storage.deleteAnnouncement(req.params.id as string);
       res.json({ message: "Announcement deleted" });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
@@ -1328,7 +2187,7 @@ export async function registerRoutes(
       if (insts.length === 0) return res.status(404).json({ message: "No institute found" });
 
       const updateData: any = {};
-      updateData[req.params.section] = req.body;
+      updateData[req.params.section as string] = req.body;
 
       const settings = await storage.upsertPlatformSettings(insts[0].id, updateData);
       res.json(settings);
@@ -1341,10 +2200,14 @@ export async function registerRoutes(
     try {
       const myEnrollments = await storage.listEnrollments({ studentId: req.user!.userId });
       const activeEnrollments = myEnrollments.filter(e => e.status === "active");
+      console.log(`[Dashboard] Student ${req.user!.userId} has ${activeEnrollments.length} active enrollments: ${activeEnrollments.map(e => e.courseOfferingId).join(', ')}`);
 
       const coursesData = await Promise.all(activeEnrollments.map(async (enrollment) => {
         const co = await storage.getCourseOffering(enrollment.courseOfferingId);
-        if (!co) return null;
+        if (!co) {
+          console.warn(`[Dashboard] Course offering ${enrollment.courseOfferingId} not found for enrollment ${enrollment.id}`);
+          return null;
+        }
         const course = await storage.getCourse(co.courseId);
         return {
           ...co,
@@ -1359,6 +2222,7 @@ export async function registerRoutes(
           courseOfferingId: enrollment.courseOfferingId,
           publishStatus: "published",
         });
+        console.log(` - Offering ${enrollment.courseOfferingId}: found ${items.length} published items`);
         allContent.push(...items);
       }
 
@@ -1371,6 +2235,14 @@ export async function registerRoutes(
       }
 
       const recentAnnouncements = await storage.listAnnouncements();
+
+      // Sort all content by date descending before slicing
+      allContent.sort((a: any, b: any) => 
+        new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+      );
+
+      console.log(`[Dashboard] Found ${allContent.length} items for student ${req.user!.userId}. Returning top 5.`);
+      allContent.slice(0, 5).forEach(c => console.log(` - ${c.title} (${c.courseOfferingId})`));
 
       res.json({
         courses: coursesData.filter(Boolean),
@@ -1434,5 +2306,101 @@ export async function registerRoutes(
     }
   });
 
+  // ── BRAILLE BACKFILL (one-time admin utility) ──────────────
+  app.post("/api/admin/backfill-braille", requireAuth, 
+    async (req: Request, res: Response) => {
+    try {
+      // Only allow teacher/admin roles
+      const user = (req as any).user;
+      if (user?.role !== 'teacher' && user?.role !== 'admin') {
+        return res.status(403).json({ message: 'Forbidden' });
+      }
+
+      // Get all content items that have a transcript but no braille
+      const allItems = await storage.listContentItems();
+      const candidates = allItems.filter((item: any) =>
+        item.transcriptPath &&
+        item.transcriptStatus === 'COMPLETED' &&
+        (!item.braillePath || item.brailleStatus === 'PENDING' 
+          || item.brailleStatus === 'FAILED')
+      );
+
+      res.json({
+        message: `Starting braille backfill for ${candidates.length} items...`,
+        total: candidates.length,
+      });
+
+      // Process in background — don't block the response
+      (async () => {
+        const { generateBraille: genBraille } = await import('./services/conversionService');
+        let success = 0;
+        let failed = 0;
+
+        for (const item of candidates) {
+          try {
+            // Read the transcript file to get raw text
+            const rawTranscriptPath = (item as any).transcriptPath;
+            // Normalize: paths stored as "converted/xxx/..." need "uploads/" prefix
+            const transcriptRelPath = rawTranscriptPath.startsWith('converted/')
+              ? `uploads/${rawTranscriptPath}`
+              : rawTranscriptPath.replace(/^.*uploads[\\/]/, 'uploads/');
+            const transcriptAbsPath = path.join(
+              process.cwd(), transcriptRelPath
+            );
+
+            if (!fs.existsSync(transcriptAbsPath)) {
+              console.warn(
+                `[Backfill] Transcript missing for ${item.id}`
+              );
+              failed++;
+              continue;
+            }
+
+            const rawText = fs.readFileSync(transcriptAbsPath, 'utf-8');
+            const brailleText = genBraille(rawText);
+            const brailleBuffer = Buffer.from(brailleText, 'utf-8');
+
+            // Save braille file next to transcript
+            const brailleDir = path.dirname(transcriptAbsPath);
+            const brailleLocalPath = path.join(brailleDir, 'braille.brf');
+            fs.writeFileSync(brailleLocalPath, brailleBuffer);
+            // Match the path format of the transcript (may or may not include uploads/ prefix)
+            const braillePath = rawTranscriptPath.replace(/transcript\.txt$/, 'braille.brf');
+            await storage.updateContentItem(item.id, {
+              braillePath,
+              brailleStatus: 'COMPLETED',
+            });
+            await patchAvailableFormats(
+              item.id, 'braille', braillePath, 'COMPLETED'
+            );
+
+            console.log(
+              `[Backfill] ✅ Braille done: ${item.id} (${item.title})`
+            );
+            success++;
+
+          } catch (e) {
+            console.error(
+              `[Backfill] ❌ Failed for ${item.id}:`, e
+            );
+            await storage.updateContentItem(item.id, {
+              brailleStatus: 'FAILED'
+            });
+            failed++;
+          }
+        }
+
+        console.log(
+          `[Backfill] Complete — ✅ ${success} done, ❌ ${failed} failed`
+        );
+      })();
+
+    } catch (error: any) {
+      console.error('[Backfill] Route error:', error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   return httpServer;
 }
+

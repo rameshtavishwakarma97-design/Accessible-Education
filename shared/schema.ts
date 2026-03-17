@@ -5,7 +5,7 @@ import { z } from "zod";
 
 export const userRoleEnum = pgEnum("user_role", ["student", "teacher", "admin"]);
 export const userStatusEnum = pgEnum("user_status", ["active", "inactive"]);
-export const publishStatusEnum = pgEnum("publish_status", ["published", "draft", "converting", "review_required", "soft_deleted"]);
+export const publishStatusEnum = pgEnum("publish_status", ["published", "draft", "converting", "review_required", "soft_deleted", "failed"]);
 export const enrollmentTypeEnum = pgEnum("enrollment_type", ["admin_assigned", "student_selected"]);
 export const enrollmentStatusEnum = pgEnum("enrollment_status", ["active", "waitlisted", "withdrawn"]);
 export const conversionStatusEnum = pgEnum("conversion_status", ["completed", "in_progress", "failed", "ready_for_review", "pending", "approved", "rejected"]);
@@ -46,7 +46,8 @@ export const users = pgTable("users", {
     brailleDisplay?: string;
     preferredNotification?: string[];
     aacDeviceModel?: string;
-  }>().default({ fontSize: 1.0, ttsSpeed: 1.0, extendedTimeMultiplier: 1.0, contrastMode: false }),
+    voiceEnabled?: boolean;
+  }>().default({ fontSize: 1.0, ttsSpeed: 1.0, extendedTimeMultiplier: 1.0, contrastMode: false, voiceEnabled: false }),
   activeModules: jsonb("active_modules").$type<string[]>().default([]),
   profileCompleted: boolean("profile_completed").default(false),
   profileSetupCompletedAt: timestamp("profile_setup_completed_at"),
@@ -218,7 +219,7 @@ export const contentItems = pgTable("content_items", {
   fileSize: text("file_size"),
   duration: text("duration"),
   formats: jsonb("formats").$type<string[]>().default(["original"]),
-  availableFormats: jsonb("available_formats").$type<Record<string, { path: string; status: string } | null>>().default({}),
+  availableFormats: jsonb("available_formats").$type<Record<string, { path: string; status: string; errorMessage?: string } | null>>().default({}),
   publishStatus: publishStatusEnum("publish_status").default("draft"),
   conversionProgress: jsonb("conversion_progress").$type<{ tier1: string; tier2: string }>().default({ tier1: "in_progress", tier2: "in_progress" }),
   uploadedBy: varchar("uploaded_by"),
@@ -228,6 +229,18 @@ export const contentItems = pgTable("content_items", {
   viewCount: integer("view_count").default(0),
   progressCount: integer("progress_count").default(0),
   linkedAssessments: jsonb("linked_assessments").$type<string[]>().default([]),
+  // ─── Per-format conversion paths & statuses ─────────────────────────────────
+  audioPath: text("audio_path"),
+  audioStatus: text("audio_status").default("PENDING"),
+  transcriptPath: text("transcript_path"),
+  transcriptStatus: text("transcript_status").default("PENDING"),
+  simplifiedPath: text("simplified_path"),
+  simplifiedStatus: text("simplified_status").default("PENDING"),
+  highContrastPath: text("high_contrast_path"),
+  highContrastStatus: text("high_contrast_status").default("PENDING"),
+  braillePath: text("braille_path"),
+  brailleStatus: text("braille_status").default("PENDING"),
+  conversionError: text("conversion_error"),
   deletedAt: timestamp("deleted_at"),
   deletedByTeacherId: varchar("deleted_by_teacher_id"),
   permanentDeleteScheduledAt: timestamp("permanent_delete_scheduled_at"),
@@ -255,11 +268,12 @@ export const conversionJobs = pgTable("conversion_jobs", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const progressTracking = pgTable("progress_tracking", {
+export const contentProgress = pgTable("content_progress", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull(),
-  contentItemId: varchar("content_item_id").notNull(),
+  studentId: varchar("student_id").notNull(),
+  contentId: varchar("content_id").notNull(),
   courseOfferingId: varchar("course_offering_id"),
+  progressPercent: integer("progress_percent").default(0),
   lastPosition: text("last_position"),
   lastFormat: text("last_format"),
   viewCount: integer("view_count").default(0),

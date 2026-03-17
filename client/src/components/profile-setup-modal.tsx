@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { DISABILITY_LABELS, type DisabilityType } from "@/lib/mock-data";
+import { DISABILITY_LABELS, type DisabilityType } from "@/lib/types";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -8,7 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const DISABILITIES: DisabilityType[] = [
@@ -18,17 +18,35 @@ const DISABILITIES: DisabilityType[] = [
 ];
 
 export function ProfileSetupModal() {
-  const { showProfileSetup, setShowProfileSetup } = useAuth();
+  const { showProfileSetup, setShowProfileSetup, user } = useAuth();
   const { toast } = useToast();
   const [step, setStep] = useState(1);
-  const [selected, setSelected] = useState<DisabilityType[]>(["blind", "deaf", "adhd"]);
-  const [fontSize, setFontSize] = useState([1.2]);
+  const [selected, setSelected] = useState<DisabilityType[]>(
+    (user?.disabilities as DisabilityType[]) ?? []
+  );
+  const [fontSize, setFontSize] = useState([1.0]);
   const [ttsSpeed, setTtsSpeed] = useState([1.0]);
-  const [extendedTime, setExtendedTime] = useState([2.0]);
+  const [extendedTime, setExtendedTime] = useState([1.0]);
   const [contrastMode, setContrastMode] = useState(false);
-  const [screenReader, setScreenReader] = useState("nvda");
-  const [brailleDisplay, setBrailleDisplay] = useState("focus-40");
+  const [screenReader, setScreenReader] = useState("");
+  const [brailleDisplay, setBrailleDisplay] = useState("");
   const [complete, setComplete] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (user?.disabilities) {
+      setSelected(user.disabilities as DisabilityType[]);
+    }
+    if (user?.preferences) {
+      const prefs = user.preferences as any;
+      setFontSize([prefs.fontSize ?? 1.0]);
+      setTtsSpeed([prefs.ttsSpeed ?? 1.0]);
+      setExtendedTime([prefs.extendedTimeMultiplier ?? 1.0]);
+      setContrastMode(prefs.contrastMode ?? false);
+      setScreenReader(prefs.screenReader ?? "");
+      setBrailleDisplay(prefs.brailleDisplay ?? "");
+    }
+  }, [user]);
 
   const toggleDisability = (d: DisabilityType) => {
     setSelected((prev) =>
@@ -36,17 +54,63 @@ export function ProfileSetupModal() {
     );
   };
 
-  const handleSave = () => {
-    setComplete(true);
-    setTimeout(() => {
-      setShowProfileSetup(false);
-      setComplete(false);
-      setStep(1);
-      toast({
-        title: "Profile saved",
-        description: `Your profile is set up. ${getModuleCount()} accessibility modules are now active.`,
+  // Disabilities that auto-enable voice
+  const VOICE_AUTO_ENABLE_DISABILITIES: DisabilityType[] = [
+    "motor",
+    "dyslexia",
+    "adhd",
+  ];
+  const voiceEnabled = selected.some((d) =>
+    VOICE_AUTO_ENABLE_DISABILITIES.includes(d)
+  );
+
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("auth_token");
+      const res = await fetch(`/api/users/${user.id}/accessibility-profile`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          disabilities: selected,
+          preferences: {
+            fontSize: fontSize[0],
+            ttsSpeed: ttsSpeed[0],
+            extendedTimeMultiplier: extendedTime[0],
+            contrastMode,
+            screenReader,
+            brailleDisplay,
+            voiceEnabled,
+          },
+          activeModules: [],
+        }),
       });
-    }, 1500);
+      if (!res.ok) throw new Error("Save failed");
+      setComplete(true);
+      setTimeout(() => {
+        setShowProfileSetup(false);
+        setComplete(false);
+        setStep(1);
+        setSaving(false);
+        toast({
+          title: "Profile saved",
+          description: `Your profile is set up. ${getModuleCount()} accessibility modules are now active.`,
+        });
+        // Reload to pick up new preferences
+        window.location.reload();
+      }, 1500);
+    } catch (error: any) {
+      setSaving(false);
+      toast({
+        title: "Save failed",
+        description: error.message || "Could not save profile. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getModuleCount = () => {
@@ -62,7 +126,7 @@ export function ProfileSetupModal() {
   if (!showProfileSetup) return null;
 
   return (
-    <Dialog open={showProfileSetup} onOpenChange={() => {}}>
+    <Dialog open={showProfileSetup} onOpenChange={() => { }}>
       <DialogContent
         className="sm:max-w-[600px] [&>button]:hidden"
         aria-labelledby="profile-setup-title"
@@ -97,9 +161,8 @@ export function ProfileSetupModal() {
               {[1, 2, 3].map((s) => (
                 <div
                   key={s}
-                  className={`h-2 flex-1 rounded-full transition-colors ${
-                    s <= step ? "bg-primary" : "bg-muted"
-                  }`}
+                  className={`h-2 flex-1 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-muted"
+                    }`}
                 />
               ))}
             </div>
@@ -121,19 +184,17 @@ export function ProfileSetupModal() {
                       role="option"
                       aria-selected={selected.includes(d)}
                       onClick={() => toggleDisability(d)}
-                      className={`flex items-center gap-2 rounded-md border p-3 text-left text-sm transition-colors ${
-                        selected.includes(d)
+                      className={`flex items-center gap-2 rounded-md border p-3 text-left text-sm transition-colors ${selected.includes(d)
                           ? "border-primary bg-accent"
                           : "border-border"
-                      }`}
+                        }`}
                       data-testid={`option-disability-${d}`}
                     >
                       <div
-                        className={`flex h-4 w-4 items-center justify-center rounded border ${
-                          selected.includes(d)
+                        className={`flex h-4 w-4 items-center justify-center rounded border ${selected.includes(d)
                             ? "border-primary bg-primary text-primary-foreground"
                             : "border-muted"
-                        }`}
+                          }`}
                       >
                         {selected.includes(d) && <Check className="h-3 w-3" />}
                       </div>
@@ -270,8 +331,8 @@ export function ProfileSetupModal() {
                   Next
                 </Button>
               ) : (
-                <Button onClick={handleSave} data-testid="button-profile-save">
-                  Save Profile
+                <Button onClick={handleSave} disabled={saving} data-testid="button-profile-save">
+                  {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</> : "Save Profile"}
                 </Button>
               )}
             </div>

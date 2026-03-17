@@ -152,11 +152,16 @@ export default function AdminSettings() {
             <TabsContent value="api" className="mt-4 space-y-4">
               <div className="rounded-md bg-[#FFF3E0]/50 border border-[#C07B1A]/30 p-3 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-[#C07B1A] shrink-0" />
-                <p className="text-sm text-[#C07B1A]">API keys are stored encrypted. Never share them or include them in code.</p>
+                <p className="text-sm text-[#C07B1A]">API keys are environment-managed and read-only in this build. Contact your system administrator to update them.</p>
               </div>
               <Card>
                 <CardContent className="p-6 space-y-6">
-                  <h3 className="font-serif text-sm font-semibold">API Keys</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif text-sm font-semibold">API Keys</h3>
+                    <Badge variant="outline" className="no-default-active-elevate text-[10px] text-muted-foreground">
+                      Environment-managed · Read-only
+                    </Badge>
+                  </div>
                   {[
                     { label: "TTS API Key", value: "sk-••••••••7f3a" },
                     { label: "LMS Integration Token", value: "lms-••••••••4b2c" },
@@ -168,7 +173,9 @@ export default function AdminSettings() {
                         <Input
                           value={showApiKey ? "sk-abcdef1234567890abcdef7f3a" : key.value}
                           readOnly
-                          className="font-mono text-sm bg-muted"
+                          disabled
+                          title="This value is managed via environment variables and cannot be edited here."
+                          className="font-mono text-sm bg-muted cursor-not-allowed"
                         />
                         <Button variant="ghost" size="icon" onClick={() => setShowApiKey(!showApiKey)} aria-label={showApiKey ? "Hide key" : "Show key"}>
                           {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -182,7 +189,7 @@ export default function AdminSettings() {
                   <div className="space-y-2">
                     <Label>Braille Conversion Library</Label>
                     <div className="flex items-center gap-2">
-                      <Input value="liblouis v3.28.0" readOnly className="bg-muted" />
+                      <Input value="liblouis v3.28.0" readOnly disabled title="Environment-managed" className="bg-muted cursor-not-allowed" />
                       <Badge variant="outline" className="no-default-active-elevate text-xs bg-[#E8F5E9] text-[#2E8B6E]">Latest</Badge>
                     </div>
                   </div>

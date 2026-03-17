@@ -1,5 +1,7 @@
 import { Link, useLocation } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
   BookOpen,
@@ -15,6 +17,7 @@ import {
   Settings,
   Megaphone,
   Accessibility,
+  LogOut,
 } from "lucide-react";
 import {
   Sidebar,
@@ -59,8 +62,36 @@ const adminNav = [
 ];
 
 export function AppSidebar() {
-  const { role, user } = useAuth();
+  const { role, user, logout } = useAuth();
   const [location] = useLocation();
+  const [, navigate] = useLocation();
+
+  const { data: unreadData } = useQuery<{ count: number }>({
+    queryKey: ["messages-unread"],
+    queryFn: () =>
+      fetch("/api/messages/unread-count", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+        },
+      }).then((r) => r.json()),
+    refetchInterval: 30_000,
+  });
+  const unreadCount = unreadData?.count ?? 0;
+
+  const handleLogout = async () => {
+    try {
+      const token = localStorage.getItem("auth_token");
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+    } catch {
+      // Proceed with local logout even if server call fails
+    } finally {
+      await logout();
+      navigate("/login");
+    }
+  };
 
   const navItems = role === "student" ? studentNav : role === "teacher" ? teacherNav : adminNav;
   const roleLabel = role === "student" ? "Student" : role === "teacher" ? "Teacher" : "Administrator";
@@ -94,12 +125,20 @@ export function AppSidebar() {
                       data-active={isActive}
                       className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
                     >
-                      <Link href={item.url} data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
-                        <item.icon className="h-4 w-4" />
+                      <Link
+                        href={item.url}
+                        aria-current={isActive ? "page" : undefined}
+                        data-testid={`link-nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <item.icon className="h-4 w-4" aria-hidden="true" />
                         <span>{item.title}</span>
-                        {item.title === "Messages" && (
-                          <Badge variant="secondary" className="ml-auto text-xs no-default-active-elevate">
-                            3
+                        {item.title === "Messages" && unreadCount > 0 && (
+                          <Badge
+                            variant="secondary"
+                            className="ml-auto text-xs no-default-active-elevate"
+                            aria-label={`${unreadCount} unread messages`}
+                          >
+                            <span aria-hidden="true">{unreadCount > 99 ? "99+" : unreadCount}</span>
                           </Badge>
                         )}
                       </Link>
@@ -111,15 +150,25 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-2">
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-destructive"
+          onClick={handleLogout}
+          aria-label="Sign out"
+          data-testid="button-logout"
+        >
+          <LogOut className="h-4 w-4" />
+          <span>Sign Out</span>
+        </Button>
         <Link href="/profile" data-testid="link-profile">
           <div className="flex items-center gap-3 rounded-md p-2 hover-elevate">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">
-              {user.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+              {(user?.name ?? "").split(" ").map((n) => n[0]).join("").slice(0, 2)}
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-medium leading-tight">{user.name}</span>
-              <span className="text-xs text-muted-foreground">{user.email}</span>
+              <span className="text-sm font-medium leading-tight">{user?.name ?? ""}</span>
+              <span className="text-xs text-muted-foreground">{user?.email ?? ""}</span>
             </div>
           </div>
         </Link>

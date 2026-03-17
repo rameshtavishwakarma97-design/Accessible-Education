@@ -3,15 +3,55 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { StatusChip } from "@/components/disability-chips";
-import { conversionJobs, formatTimeAgo } from "@/lib/mock-data";
-import { RefreshCw } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { useQuery } from "@tanstack/react-query";
+import { RefreshCw, Loader2 } from "lucide-react";
+
+function formatTimeAgo(dateString: string): string {
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHr < 24) return `${diffHr}h ago`;
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return date.toLocaleDateString();
+}
+
+async function fetchWithAuth(url: string) {
+  const token = localStorage.getItem("auth_token");
+  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error("Failed to load data");
+  return res.json();
+}
 
 export default function AdminConversions() {
+  const { user } = useAuth();
+
+  const { data: conversionsData, isLoading } = useQuery({
+    queryKey: ["admin-conversions"],
+    queryFn: () => fetchWithAuth("/api/admin/conversions"),
+    enabled: !!user,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full">
+        <TopBar title="System Conversions" />
+        <main className="flex-1 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></main>
+      </div>
+    );
+  }
+
+  const rawList: any[] = conversionsData ?? [];
+  const conversionJobs: any[] = rawList;
   const byStatus = {
-    ready_for_review: conversionJobs.filter((j) => j.status === "ready_for_review"),
-    in_progress: conversionJobs.filter((j) => j.status === "in_progress"),
-    completed: conversionJobs.filter((j) => j.status === "completed"),
-    failed: conversionJobs.filter((j) => j.status === "failed"),
+    ready_for_review: rawList.filter((j) => j.status === 'ready_for_review' || j.status === 'READYFORREVIEW'),
+    in_progress:      rawList.filter((j) => j.status === 'in_progress'      || j.status === 'IN_PROGRESS' || j.status === 'converting'),
+    completed:        rawList.filter((j) => j.status === 'completed'         || j.status === 'COMPLETED'),
+    failed:           rawList.filter((j) => j.status === 'failed'            || j.status === 'FAILED'),
   };
 
   return (
@@ -49,14 +89,14 @@ export default function AdminConversions() {
                 </tr>
               </thead>
               <tbody>
-                {conversionJobs.map((j, i) => (
+                {conversionJobs.map((j: any, i: number) => (
                   <tr key={j.id} className={`border-b ${i % 2 === 1 ? "bg-[#EEF5FB]/30" : ""}`} data-testid={`row-conv-${j.id}`}>
                     <td className="p-3 text-sm font-medium">{j.contentTitle}</td>
                     <td className="p-3 text-xs text-muted-foreground hidden sm:table-cell">{j.courseName}</td>
-                    <td className="p-3"><Badge variant="outline" className="no-default-active-elevate text-[11px] capitalize">{j.formatType.replace("_", " ")}</Badge></td>
+                    <td className="p-3"><Badge variant="outline" className="no-default-active-elevate text-[11px] capitalize">{(j.formatType || "").replace("_", " ")}</Badge></td>
                     <td className="p-3 text-xs">{j.teacherName}</td>
                     <td className="p-3"><StatusChip status={j.status} /></td>
-                    <td className="p-3 text-xs text-muted-foreground hidden md:table-cell">{formatTimeAgo(j.updatedAt)}</td>
+                    <td className="p-3 text-xs text-muted-foreground hidden md:table-cell">{formatTimeAgo(j.updatedAt || j.createdAt)}</td>
                     <td className="p-3 text-right">
                       {j.status === "failed" && (
                         <Button variant="ghost" size="sm" className="text-xs gap-1" data-testid={`button-retry-${j.id}`}>
@@ -66,6 +106,9 @@ export default function AdminConversions() {
                     </td>
                   </tr>
                 ))}
+                {conversionJobs.length === 0 && (
+                  <tr><td colSpan={7} className="p-8 text-center text-sm text-muted-foreground">No conversion jobs found</td></tr>
+                )}
               </tbody>
             </table>
           </div>

@@ -9,6 +9,7 @@ export interface AuthPayload {
   userId: string;
   email: string;
   role: string;
+  instituteId?: string;
 }
 
 declare global {
