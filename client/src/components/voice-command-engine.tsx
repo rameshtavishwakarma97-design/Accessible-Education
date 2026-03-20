@@ -35,7 +35,8 @@ const COMMANDS: { keywords: string[]; action: string }[] = [
   { keywords: ["original", "default", "normal",
                "original format"],                            action: "FORMAT_ORIGINAL"},
   { keywords: ["high contrast", "contrast",
-               "dark mode", "braille"],                       action: "FORMAT_HC"    },
+               "dark mode"],                                  action: "FORMAT_HC"    },
+  { keywords: ["braille", "open braille", "switch to braille"], action: "FORMAT_BRAILLE" },
 
   // Dashboard navigation (global)
   { keywords: ["go to dashboard", "dashboard", "home"],       action: "NAV_DASHBOARD"},
@@ -161,7 +162,7 @@ export default function VoiceCommandEngine({
         if (isContentViewer) return showFeedback("FORMAT_AUDIO");
         return showFeedback("NOT_ON_VIEWER");
       case "FORMAT_TEXT":
-        window.dispatchEvent(new CustomEvent("voice-command-viewer", { detail: { action: "FORMAT", format: "original" } }));
+        window.dispatchEvent(new CustomEvent("voice-command-viewer", { detail: { action: "FORMAT", format: "transcript" } }));
         if (isContentViewer) return showFeedback("FORMAT_TEXT");
         return showFeedback("NOT_ON_VIEWER");
       case "FORMAT_SIMPLIFIED":
@@ -173,8 +174,12 @@ export default function VoiceCommandEngine({
         if (isContentViewer) return showFeedback("FORMAT_ORIGINAL");
         return showFeedback("NOT_ON_VIEWER");
       case "FORMAT_HC":
-        window.dispatchEvent(new CustomEvent("voice-command-viewer", { detail: { action: "FORMAT", format: "high_contrast" } }));
+        window.dispatchEvent(new CustomEvent("voice-command-viewer", { detail: { action: "FORMAT", format: "highContrast" } }));
         if (isContentViewer) return showFeedback("FORMAT_HC");
+        return showFeedback("NOT_ON_VIEWER");
+      case "FORMAT_BRAILLE":
+        window.dispatchEvent(new CustomEvent("voice-command-viewer", { detail: { action: "FORMAT", format: "braille" } }));
+        if (isContentViewer) return showFeedback("FORMAT_BRAILLE");
         return showFeedback("NOT_ON_VIEWER");
 
       // Navigation — works everywhere
@@ -195,10 +200,11 @@ export default function VoiceCommandEngine({
       SPEED_UP:          "⚡ Speed increased",
       SLOW_DOWN:         "🐢 Speed decreased",
       FORMAT_AUDIO:      "🎧 Switched to Audio",
-      FORMAT_TEXT:       "📄 Switched to Text",
+      FORMAT_TEXT:       "📄 Switched to Transcript",
       FORMAT_SIMPLIFIED: "✏️ Switched to Simplified",
       FORMAT_ORIGINAL:   "📄 Switched to Original",
-      FORMAT_HC:         "🔲 High Contrast / Braille",
+      FORMAT_HC:         "🔲 High Contrast View",
+      FORMAT_BRAILLE:    "⠃ Braille Format Ready",
       NAV_DASHBOARD:     "🏠 Going to Dashboard",
       NAV_COURSES:       "📚 Going to Courses",
       NAV_ASSESSMENTS:   "📝 Going to Assessments",
