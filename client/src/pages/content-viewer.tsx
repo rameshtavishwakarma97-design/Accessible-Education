@@ -435,29 +435,28 @@ export default function ContentViewer() {
     const handleVoiceCommand = (e: any) => {
       const { action, format } = e.detail;
       if (action === "PLAY") {
-        if (!playing) {
+        // Only use native speech synthesis if we aren't in the dedicated Audio view
+        if (!playing && selectedFormat !== "audio") {
           if (audioScript) speak(audioScript);
           else if (blobContent) speak(blobContent);
         }
       } else if (action === "PAUSE") {
-        if (playing) {
+        if (playing && selectedFormat !== "audio") {
           window.speechSynthesis.cancel();
           setPlaying(false);
         }
-      } else if (action === "SPEED_UP") {
+      } else if (action === "SPEED_UP" && selectedFormat !== "audio") {
         setPlaybackSpeed(p => Math.min(2, p + 0.25));
-      } else if (action === "SLOW_DOWN") {
+      } else if (action === "SLOW_DOWN" && selectedFormat !== "audio") {
         setPlaybackSpeed(p => Math.max(0.25, p - 0.25));
       } else if (action === "FORMAT" && format) {
-        // Translate format names to match state expectations if necessary
-        const targetFormat = format === 'audio' ? 'transcript' : format; 
-        setSelectedFormat(targetFormat);
+        setSelectedFormat(format);
       }
     };
     
     window.addEventListener("voice-command-viewer", handleVoiceCommand);
     return () => window.removeEventListener("voice-command-viewer", handleVoiceCommand);
-  }, [playing, audioScript, blobContent, speak]);
+  }, [playing, audioScript, blobContent, speak, selectedFormat]);
 
 
   if (isLoading) {

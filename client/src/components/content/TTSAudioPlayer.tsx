@@ -113,6 +113,38 @@ export const TTSAudioPlayer: React.FC<TTSAudioPlayerProps> = ({
     };
   }, [audioUrl]);
 
+  // Voice command listener
+  useEffect(() => {
+    const handleVoiceCommand = (e: any) => {
+      const { action } = e.detail;
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      if (action === "PLAY") {
+        audio.play();
+        setIsPlaying(true);
+      } else if (action === "PAUSE") {
+        audio.pause();
+        setIsPlaying(false);
+      } else if (action === "SPEED_UP") {
+        setPlaybackRate(p => {
+          const newRate = Math.min(2.0, p + 0.25);
+          audio.playbackRate = newRate;
+          return newRate;
+        });
+      } else if (action === "SLOW_DOWN") {
+        setPlaybackRate(p => {
+          const newRate = Math.max(0.5, p - 0.25);
+          audio.playbackRate = newRate;
+          return newRate;
+        });
+      }
+    };
+
+    window.addEventListener("voice-command-viewer", handleVoiceCommand);
+    return () => window.removeEventListener("voice-command-viewer", handleVoiceCommand);
+  }, []);
+
   const handlePlayPause = () => {
     const audio = audioRef.current;
     if (!audio) return;
