@@ -1,125 +1,78 @@
-# Accessible Education V3
+# AccessEd: Universal Education, Accelerated by AI 🎓✨
 
-A comprehensive web application for accessible education with support for multiple content formats, accessibility features, and role-based access control.
+> **Bridging the accessibility gap in modern education through precision engineering and empathetic design.**
 
-## Quick Start
+---
 
-### Prerequisites
-- Node.js 18+ 
-- npm
-- PostgreSQL database (Neon recommended)
-- Azure Storage account (for content conversion)
-- Google Gemini API key
+## 🚀 The Vision
+AccessEd is a high-performance, enterprise-grade educational platform designed to ensure that no student is left behind. By leveraging state-of-the-art AI, we transform standard educational materials into multi-modal accessible formats—automatically, accurately, and at scale.
 
-### Setup Instructions
+## 💎 The "Academic Atelier" Design Philosophy
+We believe that accessibility should not sacrifice aesthetics. AccessEd is built with a **Premium, High-Density Interface** that balances complex utility with visual excellence.
+- **Typography**: Strictly enforced **Apple (Inter)** font stack for readability and **Lora (Serif)** for academic headers.
+- **Hierarchy**: Tight **-0.022em letter-spacing** for authoritative headers and **1.5x line height** for sustained reading comfort.
+- **Surface Logic**: 1px soft gray borders and "diffused ambient shadows" replace heavy UI clutter, creating a layered, professional atmosphere.
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/rameshtavishwakarma97-design/Accessible-Education-V2.git
-   cd Accessible-Education-V2
-   ```
+---
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+## 🛠️ Core Capabilities
 
-3. **Configure environment variables**
-   - Copy `.env.example` to `.env`
-   - Fill in the required credentials:
-     ```bash
-     cp .env.example .env
-     ```
-   - Edit `.env` with your actual secrets:
-     - `DATABASE_URL`: PostgreSQL connection string (get from Neon)
-     - `AZURE_STORAGE_CONNECTION_STRING`: Azure Storage connection string
-     - `AZURE_BLOB_CONTAINER`: Azure container name (usually "content")
-     - `GEMINI_API_KEY`: Google Gemini API key
+### 1. The Universal Conversion Engine 🔄
+Our proprietary pipeline transforms standard uploads (PDF, DOCX) into:
+- **🎧 Neural Audio**: High-fidelity Text-to-Speech (TTS) via **Kokoro-82M** for auditory learners.
+- **✏️ Simplified Text**: AI-driven content simplification for cognitive accessibility (Grade 6–8 reading level).
+- **⠿ Grade 1 Braille**: Unicode-standard Braille conversion for tactile output.
+- **🔲 High-Contrast Visuals**: Adaptive PDF styling for visual impairment support.
 
-4. **Initialize the database**
-   ```bash
-   npm run build
-   # Database migrations will run automatically on server start
-   ```
+### 2. Role-Based Command Centers 👥
+- **🏛️ Institute Admin**: Global oversight, hierarchy management, and analytics.
+- **🎓 Teacher**: Content library management, student progress tracking, and format review.
+- **👨‍🎓 Student**: Personal dashboard, accessibility-first content viewer, and peer messaging.
 
-5. **Start the development server**
-   ```bash
-   npm run dev
-   ```
+### 3. Integrated Learning Ecosystem 🌐
+- **🛡️ RBAC (Role-Based Access Control)**: Secure, compartmentalized data access.
+- **💬 Threaded Communications**: Real-time collaborative environment.
+- **📊 Precision Analytics**: Data-dense dashboards for monitoring institutional impact.
+- **🎙️ Voice Command Support**: Hands-free navigation for enhanced accessibility.
 
-   The application will be available at `http://localhost:54321`
+---
 
-## Getting Required Credentials
+## 🔌 The Tech Stack (Tier 1 Production)
+- **Frontend**: React 18, Vite, Tailwind CSS (Custom Tokens), Radix UI.
+- **Backend**: Node.js/Express, PostgreSQL (Neon), Drizzle ORM.
+- **AI/ML**: Google Gemini 1.5 Flash (Simplification), Kokoro-82M ONNX (TTS).
+- **Cloud**: Azure Blob Storage (Multi-Format Storage), Railway (Deployment).
 
-### Database (Neon)
-1. Sign up at https://neon.tech
-2. Create a project and database
-3. Copy the connection string to `DATABASE_URL`
+---
 
-### Azure Storage
-1. Create an Azure Storage Account
-2. Go to Access Keys in Azure Portal
-3. Copy the connection string to `AZURE_STORAGE_CONNECTION_STRING`
-4. Create a blob container named "content"
+## 📈 Impact & Vision
+AccessEd is not just an LMS; it's an **Empowerment Engine**. Our goal is to make every classroom universal, enabling teachers to reach 100% of their students with 0% additional manual work.
 
-### Google Gemini API
-1. Visit https://console.cloud.google.com
-2. Enable the Generative AI API
-3. Create an API key
-4. Copy to `GEMINI_API_KEY`
+### Market Opportunity
+- **TAM**: $350B Global EdTech Market.
+- **Problem**: 90% of university content is currently digitally inaccessible.
+- **Solution**: AccessEd automates compliance and empathy.
 
-## Available Scripts
+---
 
-- `npm run dev` - Start development server with hot reload
-- `npm run build` - Build for production
-- `npm start` - Run production build
-- `npm run check` - Run TypeScript type checking
+## 📦 Quick Start for Developers
 
-## Project Structure
+```bash
+# Clone & Install
+git clone https://github.com/rameshtavishwakarma97-design/Accessible-Education-V2.git
+npm install
 
-```
-├── client/              # React frontend
-│   └── src/
-│       ├── components/  # Reusable components
-│       ├── pages/       # Page components
-│       └── lib/         # Utilities and hooks
-├── server/              # Express backend
-│   ├── routes.ts       # API routes
-│   ├── storage.ts      # Database operations
-│   ├── auth.ts         # Authentication logic
-│   └── services/       # External service integrations
-├── shared/              # Shared types and schemas
-└── script/              # Build scripts
+# Build & Secure
+# Update .env with DATABASE_URL, AZURE_STORAGE_CONNECTION_STRING, GEMINI_API_KEY
+npm run build
+
+# Launch
+npm run dev
 ```
 
-## Key Features
+---
 
-- **Accessibility First**: Support for multiple content formats (PDF, video, audio, transcripts, braille, etc.)
-- **Role-Based Access**: Student, Teacher, Admin, and Institute Admin roles
-- **Content Management**: Upload, convert, and manage educational content
-- **Assessments**: Create and take assessments with progress tracking
-- **Real-time Messaging**: Thread-based communication system
-- **Analytics**: Admin dashboard with usage analytics
-- **Text-to-Speech**: Kokoro TTS integration for audio content
-
-## Contributing
-
-1. Create a branch for your feature: `git checkout -b feature/your-feature`
-2. Make your changes and ensure all tests pass: `npm run check`
-3. Commit with a clear message
-4. Push to GitHub and create a pull request
-
-## Important Notes
-
-⚠️ **Never commit `.env` files to version control**
-- Always use `.env.example` to document required variables
-- Ask teammates for credential values privately
-- Each developer should have their own local `.env` file
-
-## Support
-
-For issues or questions, please reach out to the team or create an issue on GitHub.
-
-## License
-
-MIT
+<div align="center">
+  <b>Built for the future of inclusive education.</b><br>
+  <i>"Accessibility is the baseline, not a feature."</i>
+</div>

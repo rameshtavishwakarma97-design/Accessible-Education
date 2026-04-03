@@ -100,11 +100,11 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <Accessibility className="h-5 w-5" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-md" style={{ background: "linear-gradient(135deg, #113049, #2A4660)" }}>
+            <Accessibility className="h-5 w-5" style={{ color: "#FFFFFF" }} />
           </div>
           <div className="flex flex-col">
-            <span className="font-serif text-sm font-semibold leading-tight" data-testid="text-app-name">
+            <span className="text-sm font-semibold leading-tight" style={{ fontFamily: "'Lora', Georgia, serif", letterSpacing: "-0.02em" }} data-testid="text-app-name">
               AccessEd
             </span>
             <span className="text-xs text-muted-foreground">{roleLabel}</span>

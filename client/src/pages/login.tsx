@@ -66,26 +66,35 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center p-4" style={{ background: "#FAFAF9" }}>
+      {/* Subtle ambient glow */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="h-[500px] w-[500px] rounded-full bg-[#9CD5FF]/10 blur-[100px]" />
+        <div className="h-[600px] w-[600px] rounded-full blur-[120px]" style={{ background: "rgba(122,170,206,0.08)" }} />
       </div>
 
-      <Card className="relative w-full max-w-[440px]">
-        <CardContent className="p-8">
-          <div className="flex flex-col items-center gap-2 mb-8">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Accessibility className="h-6 w-6" />
-            </div>
-            <h2 className="font-serif text-2xl font-semibold" data-testid="text-login-title">
-              Welcome back
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Accessible Education, Unified
-            </p>
-          </div>
+      <div className="relative w-full max-w-[440px]">
+        {/* Back to home link */}
+        <div className="mb-6 text-center">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium transition-colors hover:opacity-80" style={{ color: "#6E7781", textDecoration: "none" }}>
+            <span>←</span> Back to Home
+          </Link>
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <Card className="relative" style={{ borderRadius: 12, boxShadow: "0px 4px 20px rgba(29, 29, 31, 0.06)", border: "1px solid rgba(195, 199, 206, 0.2)" }}>
+          <CardContent className="p-8">
+            <div className="flex flex-col items-center gap-2 mb-8">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg" style={{ background: "linear-gradient(135deg, #113049, #2A4660)" }}>
+                <Accessibility className="h-6 w-6" style={{ color: "#FFFFFF" }} />
+              </div>
+              <h2 className="text-2xl font-semibold" style={{ fontFamily: "'Lora', Georgia, serif", color: "#1D1D1F", letterSpacing: "-0.022em" }} data-testid="text-login-title">
+                Welcome back
+              </h2>
+              <p className="text-sm" style={{ color: "#6E7781" }}>
+                Sign in to AccessEd
+              </p>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email address</Label>
               <Input
@@ -147,48 +156,49 @@ export default function LoginPage() {
                 "Sign In"
               )}
             </Button>
-          </form>
+            </form>
 
-          <div className="mt-6 text-center">
-            <Link
-              href="/pre-login-accessibility"
-              className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-              data-testid="link-pre-login-accessibility"
-            >
-              Adjust accessibility before logging in
-            </Link>
-          </div>
-
-          <div className="mt-4 rounded-md bg-accent p-3">
-            <p className="text-xs text-muted-foreground text-center">
-              <strong>Test Accounts:</strong> All passwords are <code className="bg-muted px-1 rounded">password123</code>
-            </p>
-            <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-              <button
-                type="button"
-                className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
-                onClick={() => { setEmail("priya.patel@university.edu"); setPassword("password123"); }}
+            <div className="mt-6 text-center">
+              <Link
+                href="/pre-login-accessibility"
+                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                data-testid="link-pre-login-accessibility"
               >
-                👩‍💼 Admin
-              </button>
-              <button
-                type="button"
-                className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
-                onClick={() => { setEmail("anand.rao@university.edu"); setPassword("password123"); }}
-              >
-                👨‍🏫 Teacher
-              </button>
-              <button
-                type="button"
-                className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
-                onClick={() => { setEmail("maya.sharma@university.edu"); setPassword("password123"); }}
-              >
-                👩‍🎓 Student
-              </button>
+                Adjust accessibility before logging in
+              </Link>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="mt-4 rounded-md bg-accent p-3">
+              <p className="text-xs text-muted-foreground text-center">
+                <strong>Test Accounts:</strong> All passwords are <code className="bg-muted px-1 rounded">password123</code>
+              </p>
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                <button
+                  type="button"
+                  className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
+                  onClick={() => { setEmail("priya.patel@university.edu"); setPassword("password123"); }}
+                >
+                  👩‍💼 Admin
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
+                  onClick={() => { setEmail("anand.rao@university.edu"); setPassword("password123"); }}
+                >
+                  👨‍🏫 Teacher
+                </button>
+                <button
+                  type="button"
+                  className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
+                  onClick={() => { setEmail("maya.sharma@university.edu"); setPassword("password123"); }}
+                >
+                  👩‍🎓 Student
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -293,11 +293,20 @@ export default function TeacherCourseDetail() {
       }
       return res.json();
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["course-content", id] });
       queryClient.invalidateQueries({ queryKey: ["teacher-dashboard"] });
-      setUploadedContentId(data.id);
-      setUploadStep(4); // Show live conversion progress
+      setShowUpload(false);
+      setUploadTitle("");
+      setUploadDesc("");
+      setUploadType("pdf");
+      setUploadFile(null);
+      setUploadStep(1);
+      setUploadedContentId(null);
+      toast({ 
+        title: "Content Uploaded", 
+        description: "Conversion has started. You can track progress in the content list below." 
+      });
     },
     onError: (err: Error) => {
       toast({ title: "Upload failed", description: err.message || "Something went wrong. Please try again.", variant: "destructive" });
@@ -514,7 +523,7 @@ export default function TeacherCourseDetail() {
             <DialogDescription>Supported formats: PDF, Word, TXT. Accessible versions are generated automatically.</DialogDescription>
           </DialogHeader>
           <div className="flex items-center gap-2 py-2">
-            {[1, 2, 3, 4].map((s) => (
+            {[1, 2, 3].map((s) => (
               <div key={s} className={`h-2 flex-1 rounded-full ${s <= uploadStep ? "bg-primary" : "bg-muted"}`} />
             ))}
           </div>
@@ -589,23 +598,10 @@ export default function TeacherCourseDetail() {
               </div>
             </div>
           )}
-          {uploadStep === 4 && uploadedContentId && (
-            <ConversionProgressPanel
-              contentId={uploadedContentId}
-              onDone={() => {
-                setShowUpload(false);
-                setUploadTitle("");
-                setUploadDesc("");
-                setUploadType("pdf");
-                setUploadFile(null);
-                setUploadStep(1);
-                setUploadedContentId(null);
-              }}
-            />
-          )}
+          {/* Removed step 4 (live conversion) in favor of automatic close + toast */}
           <div className="flex justify-between pt-4">
             <Button variant="secondary" onClick={() => setUploadStep(Math.max(1, uploadStep - 1))} 
-              disabled={uploadStep === 1 || uploadStep === 4}>Back</Button>
+              disabled={uploadStep === 1}>Back</Button>
             {uploadStep < 3 ? (
               <Button onClick={() => setUploadStep(uploadStep + 1)} disabled={uploadStep === 1 && !uploadTitle.trim()} data-testid="button-upload-next">Next</Button>
             ) : (

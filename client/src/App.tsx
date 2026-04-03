@@ -14,6 +14,7 @@ import type { ReactNode } from "react";
 
 import LoginPage from "@/pages/login";
 import PreLoginAccessibilityPage from "@/pages/pre-login-accessibility";
+import LandingPage from "@/pages/landing";
 import StudentDashboard from "@/pages/student-dashboard";
 import StudentCourses from "@/pages/student-courses";
 import StudentCourseDetail from "@/pages/student-course-detail";
@@ -70,12 +71,12 @@ function RoleGuard({ allowedRoles, children }: { allowedRoles: string[]; childre
 
 function AppRoutes() {
   const [location] = useLocation();
-  const isAuth = location === "/login" || location === "/pre-login-accessibility" || location === "/";
+  const isPublic = location === "/" || location === "/login" || location === "/pre-login-accessibility";
 
-  if (isAuth) {
+  if (isPublic) {
     return (
       <Switch>
-        <Route path="/" component={() => <Redirect to="/login" />} />
+        <Route path="/" component={LandingPage} />
         <Route path="/login" component={LoginPage} />
         <Route path="/pre-login-accessibility" component={PreLoginAccessibilityPage} />
         <Route component={NotFound} />

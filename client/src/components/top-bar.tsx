@@ -17,23 +17,27 @@ export function TopBar({ title, breadcrumb, unreadCount = 0 }: TopBarProps) {
 
   return (
     <header
-      className="flex h-14 items-center justify-between gap-4 border-b bg-card px-4"
+      className="flex h-14 items-center justify-between gap-4 px-4"
+      style={{ 
+        background: "#FFFFFF",
+        borderBottom: "1px solid rgba(195, 199, 206, 0.15)",
+      }}
       role="banner"
       data-testid="top-bar"
     >
       <div className="flex items-center gap-3">
         <SidebarTrigger data-testid="button-sidebar-toggle" />
         <div className="flex flex-col">
-          {title && <h1 className="text-sm font-semibold leading-tight">{title}</h1>}
+          {title && <h1 className="text-sm font-semibold leading-tight" style={{ color: "#1D1D1F", letterSpacing: "-0.01em" }}>{title}</h1>}
           {breadcrumb && (
             <nav aria-label="Breadcrumb" className="hidden sm:block">
-              <span className="text-xs text-muted-foreground">{breadcrumb}</span>
+              <span className="text-xs" style={{ color: "#6E7781" }}>{breadcrumb}</span>
             </nav>
           )}
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <Badge variant="outline" className="no-default-active-elevate text-xs capitalize">
+        <Badge variant="outline" className="no-default-active-elevate text-xs capitalize" style={{ borderColor: "rgba(195, 199, 206, 0.3)", color: "#6E7781" }}>
           {roleLabel} View
         </Badge>
         {role === "student" && (
@@ -56,7 +60,7 @@ export function TopBar({ title, breadcrumb, unreadCount = 0 }: TopBarProps) {
           data-testid="button-notifications"
         >
           <div className="relative">
-            <Bell className="h-4 w-4" />
+            <Bell className="h-4 w-4" strokeWidth={1.5} />
             {unreadCount > 0 && (
               <span
                 aria-hidden="true"
@@ -68,7 +72,8 @@ export function TopBar({ title, breadcrumb, unreadCount = 0 }: TopBarProps) {
           </div>
         </Button>
         <div
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium"
+          className="flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium"
+          style={{ background: "linear-gradient(135deg, #113049, #2A4660)", color: "#FFFFFF" }}
           data-testid="avatar-user"
           role="img"
           aria-label={user?.name ? `${user.name} — profile avatar` : "User avatar"}

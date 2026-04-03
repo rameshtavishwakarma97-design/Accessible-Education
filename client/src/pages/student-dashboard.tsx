@@ -196,13 +196,13 @@ export default function StudentDashboard() {
                             </h3>
                           </div>
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground font-mono">
                           Spring 2026 · Div {(co.divisions || []).join(", ")} · {co.teachers?.[0]?.name ?? ""}
                         </p>
                         <div className="space-y-1">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs text-muted-foreground">Progress</span>
-                            <span className="text-xs font-medium">{co.progress ?? 0}%</span>
+                          <div className="flex items-center justify-between gap-2 text-xs">
+                            <span className="text-muted-foreground">Progress</span>
+                            <span className="font-mono font-medium">{co.progress ?? 0}%</span>
                           </div>
                           <Progress value={co.progress ?? 0} className="h-1" />
                         </div>

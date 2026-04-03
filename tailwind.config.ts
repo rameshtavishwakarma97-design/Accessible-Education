@@ -6,9 +6,10 @@ export default {
   theme: {
     extend: {
       borderRadius: {
-        lg: ".5625rem", /* 9px */
-        md: ".375rem", /* 6px */
-        sm: ".1875rem", /* 3px */
+        xl: "12px",
+        lg: "8px",
+        md: "6px",
+        sm: "4px",
       },
       colors: {
         // Flat / base colors (regular buttons)
@@ -83,9 +84,9 @@ export default {
         },
       },
       fontFamily: {
-        sans: ["'DM Sans'", "var(--font-sans)", "sans-serif"],
-        serif: ["'Lora'", "var(--font-serif)", "Georgia", "serif"],
-        mono: ["'JetBrains Mono'", "var(--font-mono)", "monospace"],
+        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        serif: ["var(--font-serif)", "Georgia", "serif"],
+        mono: ["var(--font-mono)", "SF Mono", "ui-monospace", "monospace"],
       },
       keyframes: {
         "accordion-down": {

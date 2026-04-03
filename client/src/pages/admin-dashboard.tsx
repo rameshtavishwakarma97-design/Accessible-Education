@@ -273,10 +273,10 @@ export default function AdminDashboard() {
               <Card key={stat.label} data-testid={`stat-card-${stat.label.toLowerCase().replace(/\s+/g, "-")}`}>
                 <CardContent className="p-4 space-y-1">
                   <p className="text-xs text-muted-foreground">{stat.label}</p>
-                  <p className="text-2xl font-bold font-serif">{stat.value}</p>
+                  <p className="text-2xl font-bold font-mono tracking-tight">{stat.value}</p>
                   <div className="flex items-center gap-1">
-                    {stat.up ? <TrendingUp className="h-3 w-3 text-[#2E8B6E]" /> : <TrendingDown className="h-3 w-3 text-[#2E8B6E]" />}
-                    <span className="text-[11px] text-[#2E8B6E]">{stat.trend}</span>
+                    {stat.up ? <TrendingUp className="h-3 w-3 text-[#2E8B6E]" /> : <TrendingDown className="h-3 w-3 text-destructive" />}
+                    <span className={`text-[11px] font-mono ${stat.up ? "text-[#2E8B6E]" : "text-destructive"}`}>{stat.trend}</span>
                   </div>
                 </CardContent>
               </Card>

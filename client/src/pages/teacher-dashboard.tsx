@@ -180,11 +180,11 @@ export default function TeacherDashboard() {
                             <h3 className="text-sm font-semibold">{co.course?.name}</h3>
                           </div>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1"><Users className="h-3 w-3" /> {co.studentCount ?? 0} students</span>
-                            <span>Div {(co.divisions || []).join(", ")}</span>
+                            <span className="flex items-center gap-1 font-mono tracking-tight"><Users className="h-3 w-3" /> {co.studentCount ?? 0} students</span>
+                            <span className="font-mono">Div {(co.divisions || []).join(", ")}</span>
                           </div>
                           <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> {co.contentCount ?? 0} content items</span>
+                            <span className="flex items-center gap-1 font-mono tracking-tight"><FileText className="h-3 w-3" /> {co.contentCount ?? 0} content items</span>
                           </div>
                         </CardContent>
                       </Card>
