@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["nodePackages.npm", "nodejs_20", "libgomp"]
+
+[phases.build]
+cmds = ["npm install", "npm run build"]
+
+[phases.deploy]
+startCmd = "npm run start"

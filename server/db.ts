@@ -1,20 +1,31 @@
 import { Pool, neonConfig } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
+import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless";
+import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
+import pg from "pg";
 import ws from "ws";
 import * as schema from "@shared/schema";
-
-// Use WebSocket constructor for Node.js (connects over port 443, not 5432)
-neonConfig.webSocketConstructor = ws;
 
 if (!process.env.DATABASE_URL) {
   throw new Error("DATABASE_URL must be set");
 }
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const isNeon = process.env.DATABASE_URL.includes("neon.tech");
 
-// Prevent unhandled pool errors from crashing the process
-pool.on("error", (err: Error) => {
-  console.error("Unexpected database pool error:", err.message);
-});
+let dbInstance: any;
 
-export const db = drizzle(pool, { schema });
+if (isNeon) {
+  // Config specific to Neon's WebSocket-based connection
+  neonConfig.webSocketConstructor = ws;
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  pool.on("error", (err: Error) => console.error("Neon database pool error:", err.message));
+  dbInstance = drizzleNeon(pool, { schema });
+  console.log("[DB] Using Neon Serverless driver over WebSockets");
+} else {
+  // Standard Postgres driver for other providers like Railway or local
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  pool.on("error", (err: Error) => console.error("Standard database pool error:", err.message));
+  dbInstance = drizzlePg(pool, { schema });
+  console.log("[DB] Using standard Node-Postgres driver");
+}
+
+export const db = dbInstance;
