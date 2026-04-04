@@ -169,27 +169,39 @@ export default function LoginPage() {
             </div>
 
             <div className="mt-4 rounded-md bg-accent p-3">
-              <p className="text-xs text-muted-foreground text-center">
-                <strong>Test Accounts:</strong> All passwords are <code className="bg-muted px-1 rounded">password123</code>
+              <p className="text-xs text-center font-semibold" style={{ color: "#2A4660", marginBottom: 4 }}>
+                👇 Click a role below to instantly log in & explore
+              </p>
+              <p className="text-xs text-muted-foreground text-center" style={{ marginBottom: 2 }}>
+                No signup needed — credentials are auto-filled for you.
               </p>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
                 <button
                   type="button"
-                  className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
+                  className="rounded px-2 py-2 transition-all"
+                  style={{ background: "rgba(42,70,96,0.08)", border: "1.5px solid rgba(42,70,96,0.15)", cursor: "pointer" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(42,70,96,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(42,70,96,0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}
                   onClick={() => { setEmail("priya.patel@university.edu"); setPassword("password123"); }}
                 >
                   👩‍💼 Admin
                 </button>
                 <button
                   type="button"
-                  className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
+                  className="rounded px-2 py-2 transition-all"
+                  style={{ background: "rgba(122,170,206,0.12)", border: "1.5px solid rgba(122,170,206,0.2)", cursor: "pointer" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(122,170,206,0.22)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(122,170,206,0.12)"; e.currentTarget.style.transform = "translateY(0)"; }}
                   onClick={() => { setEmail("anand.rao@university.edu"); setPassword("password123"); }}
                 >
                   👨‍🏫 Teacher
                 </button>
                 <button
                   type="button"
-                  className="rounded bg-muted px-2 py-1 hover:bg-muted/80 transition-colors"
+                  className="rounded px-2 py-2 transition-all"
+                  style={{ background: "rgba(46,139,110,0.08)", border: "1.5px solid rgba(46,139,110,0.15)", cursor: "pointer" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(46,139,110,0.15)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(46,139,110,0.08)"; e.currentTarget.style.transform = "translateY(0)"; }}
                   onClick={() => { setEmail("maya.sharma@university.edu"); setPassword("password123"); }}
                 >
                   👩‍🎓 Student

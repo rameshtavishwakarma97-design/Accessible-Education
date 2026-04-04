@@ -11,7 +11,6 @@ import {
   Mic,
   BarChart3,
   ArrowRight,
-  Play,
   CheckCircle2,
   Users,
   ShieldCheck,
@@ -380,7 +379,7 @@ function HeroSection() {
           </p>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <a href="#cta">
+            <Link href="/login">
               <button
                 style={{
                   padding: "14px 28px",
@@ -405,35 +404,10 @@ function HeroSection() {
                   e.currentTarget.style.boxShadow = "none";
                 }}
               >
-                Start Free Trial
+                Try It Free Now
                 <ArrowRight size={16} strokeWidth={2} />
               </button>
-            </a>
-            <button
-              style={{
-                padding: "14px 28px",
-                fontSize: 15,
-                fontWeight: 600,
-                color: T.primaryContainer,
-                background: "transparent",
-                border: `1.5px solid ${T.primaryContainer}`,
-                borderRadius: 8,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "rgba(42,70,96,0.06)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              <Play size={16} strokeWidth={2} />
-              Watch Demo
-            </button>
+            </Link>
           </div>
 
           {/* Trust */}
@@ -1358,34 +1332,10 @@ function CtaSection() {
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              Start Free Trial
+              Try It Free Now
               <ArrowRight size={16} strokeWidth={2} />
             </button>
           </Link>
-          <button
-            style={{
-              padding: "14px 32px",
-              fontSize: 15,
-              fontWeight: 600,
-              color: T.primaryContainer,
-              background: "transparent",
-              border: `1.5px solid ${T.primaryContainer}`,
-              borderRadius: 8,
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              transition: "all 0.2s",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "rgba(42,70,96,0.06)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-            }}
-          >
-            Schedule a Demo
-          </button>
         </div>
       </div>
     </section>
