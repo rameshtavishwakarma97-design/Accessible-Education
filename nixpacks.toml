@@ -1,5 +1,4 @@
 [phases.setup]
-nixPkgs = ["nodePackages.npm", "nodejs_20"]
 aptPkgs = ["libgomp1"]
 
 [phases.build]
